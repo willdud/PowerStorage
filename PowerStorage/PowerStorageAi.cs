@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using ColossalFramework;
-using ColossalFramework.DataBinding;
 using UnityEngine;
 
 namespace PowerStorage
@@ -180,15 +179,12 @@ namespace PowerStorage
                 {
                     _chargingChirpFlag = false;
                     LastAnnoyance = theTime;
-                    var cp = Singleton<ChirpPanel>.instance;
-                    cp.AddMessage(
-                        new CustomCitizenMessage(
-                            Singleton<MessageManager>.instance.GetRandomResidentID(),
-                            theTime.Ticks % 2 == 0
-                                ? "@mayor my lights keep flickering, is everything alright?"
-                                : "@mayor thank you for installing those backup batteries, I've got homework to finish!",
-                            null)
-                        , true);
+                    var cp = Singleton<MessageManager>.instance;
+                    cp.QueueMessage(new CustomCitizenMessage(
+                        Singleton<MessageManager>.instance.GetRandomResidentID(),
+                        ChirpsAboutPowerLoss[theTime.Ticks % ChirpsAboutPowerLoss.Length],
+                        null)
+                    );
                 }
             }
         }
@@ -376,5 +372,15 @@ namespace PowerStorage
             }
             return i;
         }
+
+
+        private static string[] ChirpsAboutPowerLoss => new []
+        {
+            "@mayor my lights keep flickering, is everything alright?", 
+            "@mayor thank you for installing those backup batteries, I've got homework to finish!",
+            "My freezer just cut out, anybody want to split 4 pints of ice cream with me?",
+            "Will the traffic lights still work if the stored power facilities run out of juice?",
+            "Somebody tell the @mayor to invest in more green energy, we keep loosing power!"
+        };
     }
 }
