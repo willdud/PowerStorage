@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using CitiesHarmony.API;
 using ColossalFramework.UI;
 using ICities;
 using UnityEngine;
@@ -12,7 +13,7 @@ namespace PowerStorage
         public static int SafetyKwIntake { get; set; } = 2000;
         public static int SafetyKwDischarge { get; set; } = 2000;
         public static bool Chirp { get; set; } = true;
-        public static bool DebugLog { get; set; } = false;
+        public static bool DebugLog { get; set; } = true;
 
         public string Name => "Power Storage";
         public string Description => "A portion of power generated is put aside to be drawn from when the grid is low.";
@@ -31,7 +32,7 @@ namespace PowerStorage
             UICheckBox checkBox1 = null;
             UICheckBox checkBox2 = null;
             var group = helper.AddGroup("Power Storage Settings");
-            sliderObj1 = (UISlider)group.AddSlider($"Power loss on conversion", 0, 1, 0.1f, LossRatio, (value) =>
+            sliderObj1 = (UISlider)group.AddSlider("Power loss on conversion", 0, 1, 0.1f, LossRatio, (value) =>
             {
                 if (sliderObj1 != null)
                 {
@@ -130,6 +131,15 @@ namespace PowerStorage
         public void OnSaveData()
         {
             SaveSettings();
+        }
+
+        public void OnEnabled() {
+            HarmonyHelper.DoOnHarmonyReady(ElectricityManagerPatcher.DoPatching);
+        }
+
+        public void OnDisabled() {
+            if (HarmonyHelper.IsHarmonyInstalled) 
+                ElectricityManagerPatcher.UnPatchAll();
         }
     }
 }
