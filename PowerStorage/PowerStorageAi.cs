@@ -301,6 +301,9 @@ namespace PowerStorage
         private static int LocalMembers(ushort buildingId)
         {
             var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            if (grid == null)
+                return 1;
+
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
@@ -312,7 +315,10 @@ namespace PowerStorage
 
         private static int BackupGridFullCount(ushort buildingId)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);            
+            if (grid == null)
+                return 1;
+
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {

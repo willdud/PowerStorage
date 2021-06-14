@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using ColossalFramework;
 using ColossalFramework.UI;
 using ICities;
 using UnityEngine;
@@ -10,6 +11,7 @@ namespace PowerStorage
         public static UIComponent TsBar;
         public static float ButtonX;
         public static float ButtonY;
+        public static int? SelectedNetwork;
         public static UIView View;
     }
 
@@ -53,7 +55,7 @@ namespace PowerStorage
 
     public class Ui : MonoBehaviour
     {
-        private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 450, 1200, 300);
+        private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 650, 1200, 500);
         private bool _showingWindow = false;
         private bool _uiSetup = false;
         private UIButton _button;
@@ -93,37 +95,130 @@ namespace PowerStorage
 
         void ShowPowerStorageWindow(int windowId)
         {
-            var clone = GridsBuildingsRollup.MasterBuildingsList.ToArray();
-            foreach (var c in clone)
+            if (UiHolder.SelectedNetwork.HasValue)
             {
-                if (c == null || !c.BuildingsList.Any())
-                    continue;
-                
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(c.CodeName);
-                GUILayout.FlexibleSpace();
-                GUI.contentColor = Color.white;
-                GUILayout.Label($"Capacity: {c.CapacityKw}KW");
-                GUILayout.Label($"Consumption: {c.ConsumptionKw}KW");
-                GUILayout.FlexibleSpace();
-                GUILayout.Label($"Capacity Last Week: {c.LastCycleTotalCapacityKw}KW");
-                GUILayout.Label($"Consumption Last Week: {c.LastCycleTotalConsumptionKw}KW");
-                GUILayout.FlexibleSpace();
-                GUILayout.Label($"Buildings: {c.BuildingsList.Count}");
-                GUILayout.EndHorizontal();
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"-- AI: {string.Join(", ", c.AiTypes.ToArray())}");
-                GUILayout.EndHorizontal();
+                RenderNetworkScreen(UiHolder.SelectedNetwork.Value);
             }
-            
-            GUILayout.BeginHorizontal();            
+            else
+            {
+                RenderStatsScreen();
+            }
+        }
+
+        public Vector2 ScrollPosition1;
+        BuildingElectricityGroup[] _begClone = new BuildingElectricityGroup[0];
+        private void RenderStatsScreen()
+        {
+            if(Event.current.type == EventType.Layout)
+                _begClone = GridsBuildingsRollup.MasterBuildingsList.ToArray();
+
+            var index = 0;
+            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition1))
+            {
+                ScrollPosition1 = scrollViewScope.scrollPosition;
+
+                foreach (var c in _begClone)
+                {
+                    if (c == null || !c.BuildingsList.Any())
+                        continue;
+
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label(c.CodeName);
+                    GUILayout.FlexibleSpace();
+                    GUI.contentColor = Color.white;
+                    GUILayout.Label($"Capacity: {c.CapacityKw}KW");
+                    GUILayout.Label($"Consumption: {c.ConsumptionKw}KW");
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"Capacity Last Week: {c.LastCycleTotalCapacityKw}KW");
+                    GUILayout.Label($"Consumption Last Week: {c.LastCycleTotalConsumptionKw}KW");
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"Buildings: {c.BuildingsList.Count}");
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button("Show"))
+                    {
+                        UiHolder.SelectedNetwork = index;
+                    }
+                    index++;
+                }
+            }
+
+            GUILayout.BeginHorizontal();
             if (GUILayout.Button("Close"))
             {
                 _button.state = UIButton.ButtonState.Normal;
                 _showingWindow = false;
             }
             GUILayout.EndHorizontal();
-            
+
+            GUI.DragWindow();
+        }
+
+        
+        public Vector2 ScrollPosition2;
+        private BuildingElectricityGroup _examinedGroup = null;
+        private ushort[] _buildingList = new ushort[0];
+        private void RenderNetworkScreen(int index)
+        {
+            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+            if (Event.current.type == EventType.Layout)
+            {
+                _examinedGroup = GridsBuildingsRollup.MasterBuildingsList.ElementAt(index);
+                _buildingList = _examinedGroup.BuildingsList.ToArray();
+            }
+
+            if (_examinedGroup != null)
+            {
+                GUI.contentColor = Color.white;
+
+                GUILayout.BeginScrollView(new Vector2(0, 0));
+                GUILayout.Label(_examinedGroup.CodeName);
+                GUILayout.Label($"Capacity: {_examinedGroup.CapacityKw}KW");
+                GUILayout.Label($"Consumption: {_examinedGroup.ConsumptionKw}KW");
+                GUILayout.Space(12f);
+                GUILayout.Label($"Capacity Last Week: {_examinedGroup.LastCycleTotalCapacityKw}KW");
+                GUILayout.Label($"Consumption Last Week: {_examinedGroup.LastCycleTotalConsumptionKw}KW");
+                GUILayout.Space(12f);
+                GUILayout.Label($"Buildings: {_examinedGroup.BuildingsList.Count}");
+
+                using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition2))
+                {
+                    ScrollPosition2 = scrollViewScope.scrollPosition;
+                    foreach (var building in _buildingList)
+                    {
+                        var buildingStruct = buffer[building];
+                        GUILayout.BeginHorizontal();
+
+                        GUILayout.Label(building.ToString());
+                        GUILayout.FlexibleSpace();
+                        GUILayout.Label(buildingStruct.Info.name);
+                        GUILayout.FlexibleSpace();
+                        GUILayout.Label(buildingStruct.Info.m_buildingAI.name);
+                        GUILayout.FlexibleSpace();
+                        GUILayout.Label(buildingStruct.Info.m_buildingAI.name);
+                        GUILayout.FlexibleSpace();
+                        if (GUILayout.Button("View"))
+                        {
+                            var id = InstanceID.Empty;
+                            id.Building = building;
+                            Singleton<CameraController>.instance.SetTarget(id, buildingStruct.m_position, true);
+                        }
+
+                        GUILayout.EndHorizontal();
+                    }
+                }
+
+                GUILayout.EndScrollView();
+                //GUILayout.VerticalScrollbar(0f, 10f, 0f, 10f);
+            }
+
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Back"))
+            {
+                UiHolder.SelectedNetwork = null;
+            }
+            GUILayout.EndHorizontal();
+
             GUI.DragWindow();
         }
     }
