@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Linq;
 using ColossalFramework;
+using HarmonyLib;
 using UnityEngine;
 
 namespace PowerStorage
@@ -79,7 +80,7 @@ namespace PowerStorage
             var demandKw = GetLocalPowerDemand(buildingId);
             var instance = Singleton<DistrictManager>.instance;
             var district = instance.GetDistrict(buildingData.m_position);
-
+            
             if (demandKw <= 0)
             {
                 PowerStorageLogger.Log("Here 1");
@@ -117,7 +118,7 @@ namespace PowerStorage
             else
             {
                 ChirpAboutThePowerIssues(buildingId);
-
+                
                 //Electricity / Production
                 myGridData.ChargeTakenKw = 0;
                 var demandWithSafetyKw = demandKw + PowerStorage.SafetyKwDischarge;
@@ -205,7 +206,7 @@ namespace PowerStorage
             if ((data.m_flags & (Building.Flags.Evacuating | Building.Flags.Active)) == Building.Flags.Active)
             {
                 var budget = Singleton<EconomyManager>.instance.GetBudget(m_info.m_class);
-                calculatedRate = PlayerBuildingAI.GetProductionRate(productionRate, budget);
+                calculatedRate = GetProductionRate(productionRate, budget);
                 calculatedRate = Mathf.Min(calculatedRate, energyReserveKw / myGridData.CapacityKw * 100);
             }
             else
@@ -224,8 +225,7 @@ namespace PowerStorage
         {
             if (m_resourceType == material)
                 return;
-            else
-                base.ModifyMaterialBuffer(buildingId, ref data, material, ref amountDelta);
+            base.ModifyMaterialBuffer(buildingId, ref data, material, ref amountDelta);
         }
 
         public override string GetLocalizedStats(ushort buildingId, ref Building data)
@@ -411,8 +411,8 @@ namespace PowerStorage
 
         private static int GetElectricityGridIndex(Building building)
         {
-            var num = Mathf.Clamp((int) (building.m_position.x / 38.25 + 128.0), 0, (int) byte.MaxValue);
-            var index = Mathf.Clamp((int) (building.m_position.z / 38.25 + 128.0), 0, (int) byte.MaxValue) * 256 + num;
+            var num = Mathf.Clamp((int) (building.m_position.x / 38.25 + 128.0), 0, byte.MaxValue);
+            var index = Mathf.Clamp((int) (building.m_position.z / 38.25 + 128.0), 0, byte.MaxValue) * 256 + num;
             return index;
         }
 

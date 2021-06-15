@@ -12,6 +12,7 @@ namespace PowerStorage
         public static float ButtonX;
         public static float ButtonY;
         public static int? SelectedNetwork;
+        public static ushort? SelectedBuilding;
         public static UIView View;
     }
 
@@ -29,6 +30,7 @@ namespace PowerStorage
                     PowerStorageLogger.Log("Add UI");
                     _powerStorageUiObj = new GameObject();
                     _powerStorageUiObj.AddComponent<Ui>();
+                    _powerStorageUiObj.name = "PowerStorageUiObj";
                 }
             }
 
@@ -45,6 +47,7 @@ namespace PowerStorage
 
 		public override void OnLevelUnloading()
         {
+            PowerStorageLogger.Log($"OnLevelUnloading");
             if (_powerStorageUiObj == null) 
                 return;
 
@@ -97,7 +100,14 @@ namespace PowerStorage
         {
             if (UiHolder.SelectedNetwork.HasValue)
             {
-                RenderNetworkScreen(UiHolder.SelectedNetwork.Value);
+                if (UiHolder.SelectedBuilding.HasValue)
+                {
+                    RenderBuildingScreen(UiHolder.SelectedBuilding.Value);
+                }
+                else
+                {
+                    RenderGridScreen(UiHolder.SelectedNetwork.Value);
+                }
             }
             else
             {
@@ -113,7 +123,7 @@ namespace PowerStorage
                 _begClone = GridsBuildingsRollup.MasterBuildingsList.ToArray();
 
             var index = 0;
-            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition1))
+            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition1, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
             {
                 ScrollPosition1 = scrollViewScope.scrollPosition;
 
@@ -139,6 +149,7 @@ namespace PowerStorage
                         UiHolder.SelectedNetwork = index;
                     }
                     index++;
+                    GUILayout.EndHorizontal();
                 }
             }
 
@@ -157,7 +168,7 @@ namespace PowerStorage
         public Vector2 ScrollPosition2;
         private BuildingElectricityGroup _examinedGroup = null;
         private ushort[] _buildingList = new ushort[0];
-        private void RenderNetworkScreen(int index)
+        private void RenderGridScreen(int index)
         {
             var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             if (Event.current.type == EventType.Layout)
@@ -169,8 +180,7 @@ namespace PowerStorage
             if (_examinedGroup != null)
             {
                 GUI.contentColor = Color.white;
-
-                GUILayout.BeginScrollView(new Vector2(0, 0));
+                
                 GUILayout.Label(_examinedGroup.CodeName);
                 GUILayout.Label($"Capacity: {_examinedGroup.CapacityKw}KW");
                 GUILayout.Label($"Consumption: {_examinedGroup.ConsumptionKw}KW");
@@ -179,8 +189,8 @@ namespace PowerStorage
                 GUILayout.Label($"Consumption Last Week: {_examinedGroup.LastCycleTotalConsumptionKw}KW");
                 GUILayout.Space(12f);
                 GUILayout.Label($"Buildings: {_examinedGroup.BuildingsList.Count}");
-
-                using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition2))
+                
+                using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition2, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
                 {
                     ScrollPosition2 = scrollViewScope.scrollPosition;
                     foreach (var building in _buildingList)
@@ -201,21 +211,55 @@ namespace PowerStorage
                             var id = InstanceID.Empty;
                             id.Building = building;
                             Singleton<CameraController>.instance.SetTarget(id, buildingStruct.m_position, true);
+                            UiHolder.SelectedBuilding = building;
                         }
 
                         GUILayout.EndHorizontal();
                     }
                 }
-
-                GUILayout.EndScrollView();
-                //GUILayout.VerticalScrollbar(0f, 10f, 0f, 10f);
             }
-
 
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Back"))
             {
                 UiHolder.SelectedNetwork = null;
+            }
+            GUILayout.EndHorizontal();
+
+            GUI.DragWindow();
+        }
+        
+        private void RenderBuildingScreen(ushort buildingIndex)
+        {
+            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+            var nodes = Singleton<NetManager>.instance.m_nodes;
+
+            var building = buffer[buildingIndex];
+            var node = nodes.m_buffer.FirstOrDefault(n => n.m_building == buildingIndex);
+            if (Event.current.type == EventType.Layout)
+            {
+            }
+
+            GUI.contentColor = Color.white;
+            GUILayout.Label(building.Info.GetType().ToString());
+            GUILayout.Space(12f);
+            GUILayout.Label("Building: " + buildingIndex);
+            GUILayout.Label("Building Node: " + building.m_netNode);
+            GUILayout.Label("Next Grid Node: " + node.m_nextGridNode);
+            GUILayout.Label("Node Connect Count: " + node.m_connectCount);
+            GUILayout.Label("Node Segment0: " + node.m_segment0);
+            GUILayout.Label("Node Segment1: " + node.m_segment1);
+            GUILayout.Label("Node Segment2: " + node.m_segment2);
+            GUILayout.Label("Node Segment3: " + node.m_segment3);
+            GUILayout.Label("Node Segment4: " + node.m_segment4);
+            GUILayout.Label("Node Segment5: " + node.m_segment5);
+            GUILayout.Label("Node Segment6: " + node.m_segment6);
+            GUILayout.Label("Node Segment7: " + node.m_segment7);
+            
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Back"))
+            {
+                UiHolder.SelectedBuilding = null;
             }
             GUILayout.EndHorizontal();
 

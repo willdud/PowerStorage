@@ -142,6 +142,7 @@ namespace PowerStorage
                 }
             }
 
+            PowerStorageLogger.Log($"Merging networks ({MasterBuildingsList.Count})");
             for (var i = MasterBuildingsList.Count - 1; i >= 0; i--)
             {
                 if(MasterBuildingsList[i].LastBuildingUpdate != now)
@@ -167,7 +168,7 @@ namespace PowerStorage
                 unmappedPoints = unmappedPoints.Except(network).ToList();
                 networks.Add(network);
             }
-
+            
             networks = JoinNetworksByNodes(networks);
         }
 
@@ -175,12 +176,17 @@ namespace PowerStorage
         {
             var buildings = Singleton<BuildingManager>.instance.m_buildings;
             var nodes = Singleton<NetManager>.instance.m_nodes;
+            var networksToAdd = new List<List<Building>>();
+            var networksToRemove = new List<int>();
 
             foreach (var network in networks)
             foreach (var building in network)
             {
                 if (!(building.Info.m_buildingAI is PowerPoleAI))
                         continue;
+
+                if(networksToRemove.Contains(networks.IndexOf(network)))
+                    continue;
 
                 var buildingIndex = Array.IndexOf(buildings.m_buffer, building);
                 var node = nodes.m_buffer.FirstOrDefault(n => n.m_building == buildingIndex);
@@ -189,84 +195,81 @@ namespace PowerStorage
                 PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}");
                 
                 var nodesExplored = CollectBuildingIdsOnNetwork(node, new List<ushort>());
-                var networksToCombine = new List<int>();
+                var networksToCombine = new List<int> { networks.IndexOf(network) };
                 for (var i = 0; i < networks.Count; i++)
                 {
+                    if (network == networks[i])
+                        continue;
+
                     if (networks[i].Any(n => nodesExplored.Contains(n)))
                         networksToCombine.Add(i);
                 }
 
                 if (networksToCombine.Count <= 1) 
                     continue;
-
-                networksToCombine.Reverse();
+                
                 var newMegaNetwork = new List<Building>();
                 foreach (var n in networksToCombine)
                 {
+                    if(newMegaNetwork.Any())
+                        networksToRemove.Add(n);
                     newMegaNetwork.AddRange(networks[n]);
-                    networks.RemoveAt(n);
                 }
-                networks.Add(newMegaNetwork);
+                networksToAdd.Add(newMegaNetwork);
             }
 
-            return networks;
-        }
-
-
-        private static List<Building> CollectBuildingIdsOnNetwork(ushort nodeIndex, List<ushort> visitedSegments)
-        {
-            var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
-            return CollectBuildingIdsOnNetwork(nodes[nodeIndex], visitedSegments);
-        }
-
-        private static List<Building> CollectBuildingIdsOnNetwork(NetNode node, List<ushort> visitedSegments)
-        {
-            var connectedNodesBuildings = new List<Building>();
-            for (var i = 0; i < node.m_connectCount; i++)
+            PowerStorageLogger.Log($"Removing Networks-A ({networksToRemove.Count}) {string.Join(", ", networksToRemove.Select(i => i.ToString()).ToArray())}");
+            PowerStorageLogger.Log($"Removing Networks-B ({networks.Count})");
+            foreach (var i in networksToRemove.Distinct().OrderByDescending(n => n))
             {
-                ushort nextSegment = 0; 
-                switch (i)
-                {
-                    case 0:
-                        nextSegment = node.m_segment0;
-                        break;
-                    case 1:
-                        nextSegment = node.m_segment1;
-                        break;
-                    case 2:
-                        nextSegment = node.m_segment2;
-                        break;
-                    case 3:
-                        nextSegment = node.m_segment3;
-                        break;
-                    case 4:
-                        nextSegment = node.m_segment4;
-                        break;
-                    case 5:
-                        nextSegment = node.m_segment5;
-                        break;
-                    case 6:
-                        nextSegment = node.m_segment6;
-                        break;
-                    case 7:
-                        nextSegment = node.m_segment7;
-                        break;
-                }
+                networks.RemoveAt(i);
+            }
 
-                if (nextSegment > 0 && !visitedSegments.Contains(nextSegment))
-                {
-                    visitedSegments.Add(nextSegment);
-                    connectedNodesBuildings.AddRange(CollectBuildingIdsOnNetwork(nextSegment, visitedSegments));
-                }
+            foreach (var network in networksToAdd)
+            {
+                networks.Add(network);
             }
             
-            connectedNodesBuildings.Add(Singleton<BuildingManager>.instance.m_buildings.m_buffer[node.m_building]);
+            return networks;
+        }
+        
+        private static List<Building> CollectBuildingIdsOnNetwork(NetNode node, List<ushort> visitedSegments)
+        {
+            var segments = Singleton<NetManager>.instance.m_segments.m_buffer;
+            var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
+            var connectedNodesBuildings = new List<Building>();
+            
+            void Get(ushort segment)
+            {
+                if (segment <= 0 || visitedSegments.Contains(segment)) return;
+
+                visitedSegments.Add(segment);
+                var s = segments[segment].m_startNode;
+                var e = segments[segment].m_endNode;
+                var startNode = nodes[s];
+                var endNode = nodes[e];
+                connectedNodesBuildings.AddRange(CollectBuildingIdsOnNetwork(startNode, visitedSegments));
+                connectedNodesBuildings.AddRange(CollectBuildingIdsOnNetwork(endNode, visitedSegments));
+            }
+
+            Get(node.m_segment0);
+            Get(node.m_segment1);
+            Get(node.m_segment2);
+            Get(node.m_segment3);
+            Get(node.m_segment4);
+            Get(node.m_segment5);
+            Get(node.m_segment6);
+            Get(node.m_segment7);
+
+            var building = Singleton<BuildingManager>.instance.m_buildings.m_buffer[node.m_building];
+            if(!connectedNodesBuildings.Contains(building))
+                connectedNodesBuildings.Add(building);
+
             return connectedNodesBuildings;
         }
 
         private static List<Building> MapNetwork(Building point, List<Building> unmappedPoints)
         {
-            PowerStorageLogger.Log("MapNetwork");
             var network = new List<Building> { point };
             var newPoint = point;
 
@@ -281,6 +284,7 @@ namespace PowerStorage
                 unmappedPoints.Remove(newPoint);
                 network.AddRange(MapNetwork(newPoint, unmappedPoints));
             }
+            PowerStorageLogger.Log($"MapNetwork ({network.Count})");
             return network;
         }
 
