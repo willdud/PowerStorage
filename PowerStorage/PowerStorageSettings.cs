@@ -17,5 +17,7 @@ namespace PowerStorage
         public bool? Chirp = true;
         [SerializeField]
         public bool? Debug = false;
+        [SerializeField]
+        public bool? Profile = true;
     }
 }

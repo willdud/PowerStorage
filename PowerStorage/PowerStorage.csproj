@@ -88,6 +88,7 @@
     <Compile Include="GridSerializer.cs" />
     <Compile Include="NumberExtensions.cs" />
     <Compile Include="PowerStorage.cs" />
+    <Compile Include="PowerStorageProfiler.cs" />
     <Compile Include="PowerStorageLogger.cs" />
     <Compile Include="PowerStorageSettings.cs" />
     <Compile Include="PowerStorageUI.cs" />

@@ -13,7 +13,8 @@ namespace PowerStorage
         public static int SafetyKwIntake { get; set; } = 2000;
         public static int SafetyKwDischarge { get; set; } = 2000;
         public static bool Chirp { get; set; } = true;
-        public static bool DebugLog { get; set; } = true;
+        public static bool DebugLog { get; set; } = false;
+        public static bool Profile { get; set; } = true;
 
         public string Name => "Power Storage";
         public string Description => "A portion of power generated is put aside to be drawn from when the grid is low.";
@@ -31,6 +32,7 @@ namespace PowerStorage
             UISlider sliderObj3 = null;
             UICheckBox checkBox1 = null;
             UICheckBox checkBox2 = null;
+            UICheckBox checkBox3 = null;
             var group = helper.AddGroup("Power Storage Settings");
             sliderObj1 = (UISlider)group.AddSlider("Power loss on conversion", 0, 1, 0.1f, LossRatio, (value) =>
             {
@@ -70,6 +72,10 @@ namespace PowerStorage
             {
                 DebugLog = isChecked;
             });
+            checkBox3 = (UICheckBox)group.AddCheckbox("Profile Logging", Profile, isChecked =>
+            {
+                Profile = isChecked;
+            });
         }
         
         public void LoadSettings()
@@ -88,6 +94,8 @@ namespace PowerStorage
                         Chirp = psSettings.Chirp.Value;
                     if(psSettings.Debug.HasValue)
                         DebugLog = psSettings.Debug.Value;
+                    if(psSettings.Profile.HasValue)
+                        Profile = psSettings.Profile.Value;
                 }
             } 
             catch (Exception e) 
@@ -106,7 +114,8 @@ namespace PowerStorage
                     SafetyKwIntake = SafetyKwIntake,
                     SafetyKwDischarge = SafetyKwDischarge,
                     Chirp = Chirp,
-                    Debug = DebugLog
+                    Debug = DebugLog,
+                    Profile = Profile
                 };
                 File.WriteAllText(FullSavePath, JsonUtility.ToJson(psSettings));
             } 

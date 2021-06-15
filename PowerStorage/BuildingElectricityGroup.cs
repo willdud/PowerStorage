@@ -11,7 +11,6 @@ namespace PowerStorage
         {
             CodeName =  $"{CodeWords[Rnd.Next(0, CodeWords.Length)]}-{CodeWords[Rnd.Next(0, CodeWords.Length)]}";
             BuildingsList = new List<ushort>();
-            AiTypes = new List<string>();
         }
 
         public string CodeName;
@@ -22,6 +21,5 @@ namespace PowerStorage
         public int CapacityKw;
         public int ConsumptionKw;
         public List<ushort> BuildingsList;
-        public List<string> AiTypes;
     }
 }

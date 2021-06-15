@@ -68,6 +68,8 @@ namespace PowerStorage
                 return;
 
             _buildingUpdatesLastTick = _buildingUpdates;
+            
+            var watch = PowerStorageProfiler.Start("Whole network process");
             var buildings = Singleton<BuildingManager>.instance.m_buildings;
             var unvisitedPoints = buildings.m_buffer.Where(b =>
                 {
@@ -80,6 +82,7 @@ namespace PowerStorage
             ).ToList();
             MapNetworks(unvisitedPoints, out var networks);
             MergeNetworksWithMaster(networks);
+            PowerStorageProfiler.Stop("Whole network process", watch);
         }
 
         private static void HandleSimulationLoop(BuildingElectricityGroup beg)
@@ -107,7 +110,7 @@ namespace PowerStorage
 
         private static void MergeNetworksWithMaster(List<List<Building>> networks)
         {
-            PowerStorageLogger.Log("Merging networks");
+            var watch = PowerStorageProfiler.Start("MergeNetworksWithMaster");
             var now = Singleton<SimulationManager>.instance.m_currentGameTime;
             var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             foreach (var network in networks)
@@ -127,7 +130,6 @@ namespace PowerStorage
 
                 if (bestMatch != null)
                 {
-                    bestMatch.AiTypes = network.Select(n => n.Info.m_buildingAI.GetType().Name).Distinct().ToList();
                     bestMatch.BuildingsList = networkAsIndexes;
                     bestMatch.LastBuildingUpdate = now;
                 }
@@ -135,19 +137,19 @@ namespace PowerStorage
                 {
                     MasterBuildingsList.Add(new BuildingElectricityGroup
                     {
-                        AiTypes = network.Select(n => n.Info.m_buildingAI.GetType().Name).Distinct().ToList(),
                         BuildingsList = networkAsIndexes,
                         LastBuildingUpdate = now
                     });
                 }
             }
-
+            PowerStorageProfiler.Lap("MergeNetworksWithMaster", watch);
             PowerStorageLogger.Log($"Merging networks ({MasterBuildingsList.Count})");
             for (var i = MasterBuildingsList.Count - 1; i >= 0; i--)
             {
                 if(MasterBuildingsList[i].LastBuildingUpdate != now)
                     MasterBuildingsList.RemoveAt(i);
             }
+            PowerStorageProfiler.Stop("MergeNetworksWithMaster", watch);
         }
 
         private static float DistanceBetweenPoints(Building one, Building two)
@@ -159,6 +161,7 @@ namespace PowerStorage
 
         private static void MapNetworks(List<Building> unmappedPoints, out List<List<Building>> networks) 
         {
+            var watch = PowerStorageProfiler.Start("MapNetworks");
             networks = new List<List<Building>>();
             while(unmappedPoints.Any())
             {
@@ -167,13 +170,17 @@ namespace PowerStorage
                 var network = MapNetwork(point, unmappedPoints);
                 unmappedPoints = unmappedPoints.Except(network).ToList();
                 networks.Add(network);
+                PowerStorageProfiler.Lap("MapNetworks", watch);
             }
-            
+            PowerStorageProfiler.Stop("MapNetworks", watch);
+
             networks = JoinNetworksByNodes(networks);
         }
 
         private static List<List<Building>> JoinNetworksByNodes(List<List<Building>> networks)
         {
+            var watch = PowerStorageProfiler.Start("JoinNetworksByNodes");
+
             var buildings = Singleton<BuildingManager>.instance.m_buildings;
             var nodes = Singleton<NetManager>.instance.m_nodes;
             var networksToAdd = new List<List<Building>>();
@@ -194,7 +201,10 @@ namespace PowerStorage
                 PowerStorageLogger.Log($"Building {building.Info.name}. b:{buildingIndex} x:{building.m_position.x} z:{building.m_position.z}");
                 PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}");
                 
+                var watch2 = PowerStorageProfiler.Start("CollectBuildingIdsOnNetwork");
                 var nodesExplored = CollectBuildingIdsOnNetwork(node, new List<ushort>());
+                PowerStorageProfiler.Stop("CollectBuildingIdsOnNetwork", watch2);
+
                 var networksToCombine = new List<int> { networks.IndexOf(network) };
                 for (var i = 0; i < networks.Count; i++)
                 {
@@ -216,6 +226,7 @@ namespace PowerStorage
                     newMegaNetwork.AddRange(networks[n]);
                 }
                 networksToAdd.Add(newMegaNetwork);
+                PowerStorageProfiler.Lap("JoinNetworksByNodes", watch);
             }
 
             PowerStorageLogger.Log($"Removing Networks-A ({networksToRemove.Count}) {string.Join(", ", networksToRemove.Select(i => i.ToString()).ToArray())}");
@@ -230,6 +241,8 @@ namespace PowerStorage
                 networks.Add(network);
             }
             
+            
+            PowerStorageProfiler.Stop("JoinNetworksByNodes", watch);
             return networks;
         }
         
@@ -275,7 +288,7 @@ namespace PowerStorage
 
             while (unmappedPoints.Any(p =>
             {
-                var hasMatch = DistanceBetweenPoints(newPoint, p) <= newPoint.Info.m_buildingAI.ElectricityGridRadius() + p.Info.m_buildingAI.ElectricityGridRadius() + 19.125; // 19.125 added in ElectricityManager
+                var hasMatch = DistanceBetweenPoints(newPoint, p) <= newPoint.Info.m_buildingAI.ElectricityGridRadius() + p.Info.m_buildingAI.ElectricityGridRadius() + (19.125 * 2); // 19.125 added in ElectricityManager
                 if(hasMatch)		
                     newPoint = p;
                 return hasMatch;

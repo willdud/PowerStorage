@@ -91,6 +91,7 @@ namespace PowerStorage
 
                 if (_showingWindow)
                 {
+                    _windowRect.position = new Vector2(25, 25);
                     _windowRect = GUILayout.Window(314, _windowRect, ShowPowerStorageWindow, "Power Storage - Grid Stats");
                 }
             }
