@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Linq;
 using ColossalFramework;
-using HarmonyLib;
 using UnityEngine;
 
 namespace PowerStorage
@@ -28,7 +27,7 @@ namespace PowerStorage
 
             BackupGrid.Add(buildingId, new GridMemberLastTickStats
             {
-                BuildingId = buildingId,
+                Building = data,
                 CapacityKw = m_resourceCapacity.ToKw(),
                 PotentialOutputKw = m_resourceConsumption.ToKw()
             });
@@ -77,7 +76,7 @@ namespace PowerStorage
             var amountToAddKw = 0;
             var outputKw = 0;
             
-            var demandKw = GetLocalPowerDemand(buildingId);
+            var demandKw = GetLocalPowerDemand(buildingData);
             var instance = Singleton<DistrictManager>.instance;
             var district = instance.GetDistrict(buildingData.m_position);
             
@@ -92,9 +91,9 @@ namespace PowerStorage
                 PowerStorageLogger.Log($"Here 1.5 {energyReserveKw} < {energyCapacityKw}");
                 if (energyReserveKw < energyCapacityKw)
                 {
-                    PowerStorageLogger.Log("Here 2");
+                    PowerStorageLogger.Log($"Here 2 {demandKw}KW");
                     var excess = Math.Max(0, ((demandKw * -1) - PowerStorage.SafetyKwIntake));
-                    var portionOfExcess = excess / Math.Max(1, LocalMembers(buildingId) - BackupGridFullCount(buildingId));
+                    var portionOfExcess = excess / Math.Max(1, LocalMembers(buildingData) - BackupGridFullCount(buildingData));
                     amountToAddKw = Math.Min(m_resourceConsumption.ToKw(), portionOfExcess);
                     var amountToSubtractKw = amountToAddKw;
                     amountToAddKw = (int)(amountToAddKw * (1 - PowerStorage.LossRatio));
@@ -117,12 +116,12 @@ namespace PowerStorage
             }
             else
             {
-                ChirpAboutThePowerIssues(buildingId);
+                ChirpAboutThePowerIssues(buildingData);
                 
                 //Electricity / Production
                 myGridData.ChargeTakenKw = 0;
                 var demandWithSafetyKw = demandKw + PowerStorage.SafetyKwDischarge;
-                var portionOfDemandKw = CalculateMyShare(buildingId, demandWithSafetyKw);
+                var portionOfDemandKw = CalculateMyShare(buildingData, demandWithSafetyKw);
                 PowerStorageLogger.Log("Portion of demand:" + portionOfDemandKw);
                 GetElectricityProduction(out _, out var max); // Silly
                 max = max.ToKw();
@@ -178,9 +177,9 @@ namespace PowerStorage
             }
         }
 
-        private void ChirpAboutThePowerIssues(ushort buildingId)
+        private void ChirpAboutThePowerIssues(Building building)
         {
-            if (!PowerStorage.Chirp || !_chargingChirpFlag || buildingId != LowestBuildingId(buildingId)) 
+            if (!PowerStorage.Chirp || !_chargingChirpFlag || building.m_buildIndex != LowestIdBuilding(building).m_buildIndex) 
                 return;
 
             var theTime = Singleton<SimulationManager>.instance.m_currentGameTime;
@@ -212,7 +211,7 @@ namespace PowerStorage
             else
                 calculatedRate = 0;
             
-            var demandKw = GetLocalPowerDemand(buildingId);
+            var demandKw = GetLocalPowerDemand(data);
             GetElectricityProduction(out _, out var max);
             max = max.ToKw();
             var output = Math.Min(demandKw, energyReserveKw); // Kw
@@ -239,9 +238,9 @@ namespace PowerStorage
         }
 
         
-        private static int GetLocalPowerDemand(ushort buildingId)
+        private static int GetLocalPowerDemand(Building building)
         {
-            var grid = GridsBuildingsRollup.MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Contains(buildingId));
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             if (grid == null)
             {
                 PowerStorageLogger.Log("Power Storage building is not part of any grid.");
@@ -251,34 +250,34 @@ namespace PowerStorage
             var capacity = grid.LastCycleTotalCapacityKw;
             var consumption = grid.LastCycleTotalConsumptionKw;
 
-            var backgroundConsumption = BackupGridActiveConsumptionSum(buildingId);
-            var backgroundContribution = BackupGridActiveContributionSum(buildingId);
+            var backgroundConsumption = BackupGridActiveConsumptionSum(building);
+            var backgroundContribution = BackupGridActiveContributionSum(building);
 
             var demand = Math.Max(0, consumption - backgroundConsumption) - Math.Max(0, capacity - backgroundContribution);
             PowerStorageLogger.Log($"capacity:{capacity} | consumption:{consumption} | backgroundConsumption:{backgroundConsumption} | lastOutputOfAll:{ backgroundContribution } | demand:{demand}");
             return demand;
         }
         
-        private static int BackupGridActiveContributionSum(ushort buildingId)
+        private static int BackupGridActiveContributionSum(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && memberData.IsActive && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && memberData.IsActive && grid.BuildingsList.Contains(memberData.Building))
                 {
                     i += memberData.ChargeProvidedKw;
                 }
             }
             return i;
         }
-        private static int BackupGridActiveConsumptionSum(ushort buildingId)
+        private static int BackupGridActiveConsumptionSum(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && memberData.IsActive && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && memberData.IsActive && grid.BuildingsList.Contains(memberData.Building))
                 {
                     i += memberData.ChargeTakenKw;
                 }
@@ -286,56 +285,56 @@ namespace PowerStorage
             return i;
         }
 
-        private static int BackupGridActiveCount(ushort buildingId)
+        private static int BackupGridActiveCount(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && memberData.IsActive && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && memberData.IsActive && grid.BuildingsList.Contains(memberData.Building))
                     i++;
             }
             return i;
         }
 
-        private static int LocalMembers(ushort buildingId)
+        private static int LocalMembers(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             if (grid == null)
                 return 1;
 
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && grid.BuildingsList.Contains(memberData.Building))
                     i++;
             }
             return i;
         }
 
-        private static int BackupGridFullCount(ushort buildingId)
+        private static int BackupGridFullCount(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);            
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);            
             if (grid == null)
                 return 1;
 
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && (memberData.IsFull || memberData.IsOff) && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && (memberData.IsFull || memberData.IsOff) && grid.BuildingsList.Contains(memberData.Building))
                     i++;
             }
             return i;
         }
 
-        private int CalculateMyShare(ushort buildingId, int demandWithSafetyKw)
+        private int CalculateMyShare(Building building, int demandWithSafetyKw)
         {
-            var totalGridPotential = GetTotalGridPotential(buildingId);
+            var totalGridPotential = GetTotalGridPotential(building);
             if(totalGridPotential < demandWithSafetyKw)
                 return int.MaxValue;
 
-            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
-            var evenShareDemandKw = demandWithSafetyKw / Math.Max(1, BackupGridActiveCount(buildingId));
+            var myGridData = BackupGrid[building] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
+            var evenShareDemandKw = demandWithSafetyKw / Math.Max(1, BackupGridActiveCount(building));
             var myOffering = Math.Min(myGridData.CurrentChargeKw, myGridData.PotentialOutputKw);
             if(myOffering < evenShareDemandKw)
                 return int.MaxValue;
@@ -345,7 +344,7 @@ namespace PowerStorage
             do
             {
                 previousEliminated = newEliminated;
-                var remainingAfterSlackersKw = GetEvenShareAboveValue(demandWithSafetyKw, evenShareDemandKw, buildingId, out var participants, out newEliminated);
+                var remainingAfterSlackersKw = GetEvenShareAboveValue(demandWithSafetyKw, evenShareDemandKw, building, out var participants, out newEliminated);
                 evenShareDemandKw = remainingAfterSlackersKw / Math.Max(1, participants);
                 
                 PowerStorageLogger.Log($"demandWithSafetyKw:{demandWithSafetyKw}, remainingAfterSlackersKw:{remainingAfterSlackersKw}, evenShareDemandKw:{evenShareDemandKw}, participants:{participants}, previousEliminated:{previousEliminated}, newEliminated:{newEliminated}");
@@ -358,14 +357,14 @@ namespace PowerStorage
             return evenShareDemandKw;
         }
 
-        private static int GetEvenShareAboveValue(int total, int value, ushort buildingId, out int participants, out int eliminated)
+        private static int GetEvenShareAboveValue(int total, int value, Building building, out int participants, out int eliminated)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             eliminated = 0;
             participants = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && grid.BuildingsList.Contains(memberData.Building))
                 {
                     var contribution = Math.Min(memberData.PotentialOutputKw, memberData.CurrentChargeKw);
                     if (contribution <= value)
@@ -381,13 +380,13 @@ namespace PowerStorage
             return total;
         }
 
-        private static int GetTotalGridPotential(ushort buildingId)
+        private static int GetTotalGridPotential(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             var i = 0;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && grid.BuildingsList.Contains(memberData.Building))
                 {
                     i += Math.Min(memberData.PotentialOutputKw, memberData.CurrentChargeKw);
                 }
@@ -395,25 +394,25 @@ namespace PowerStorage
             return i;
         }
         
-        private static ushort LowestBuildingId(ushort buildingId)
+        private static Building LowestIdBuilding(Building building)
         {
-            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(buildingId);
+            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+            var grid = GridsBuildingsRollup.GetGroupContainingBuilding(building);
             var i = ushort.MaxValue;
+            var returnValue = building;
             foreach (DictionaryEntry entry in BackupGrid)
             {
-                if (entry.Value is GridMemberLastTickStats memberData && memberData.BuildingId < i && grid.BuildingsList.Contains(memberData.BuildingId))
+                if (!(entry.Value is GridMemberLastTickStats memberData)) 
+                    continue;
+
+                var index = (ushort)Array.IndexOf(buffer, memberData);
+                if (index < i && grid.BuildingsList.Contains(memberData.Building))
                 {
-                    i = memberData.BuildingId;
+                    i = index;
+                    returnValue = memberData.Building;
                 }
             }
-            return i;
-        }
-
-        private static int GetElectricityGridIndex(Building building)
-        {
-            var num = Mathf.Clamp((int) (building.m_position.x / 38.25 + 128.0), 0, byte.MaxValue);
-            var index = Mathf.Clamp((int) (building.m_position.z / 38.25 + 128.0), 0, byte.MaxValue) * 256 + num;
-            return index;
+            return returnValue;
         }
 
         private static string[] ChirpsAboutPowerLoss => new []

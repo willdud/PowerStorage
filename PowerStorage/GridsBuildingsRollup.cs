@@ -13,7 +13,7 @@ namespace PowerStorage
         private static int _buildingUpdates = 0;
         public static List<BuildingElectricityGroup> MasterBuildingsList { get; set; }
 
-        public static BuildingElectricityGroup GetGroupContainingBuilding(ushort buildingId) => MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Contains(buildingId));
+        public static BuildingElectricityGroup GetGroupContainingBuilding(Building building) => MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_buildIndex == building.m_buildIndex));
 
         static GridsBuildingsRollup()
         {
@@ -22,9 +22,7 @@ namespace PowerStorage
 
         public static void AddCapacity(Vector3 pos, int kw)
         {
-            var building = GetBuildingByPosition(pos);
-            var buildingGroup = MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Contains(building));
-
+            var buildingGroup = MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_position == pos));
             if (!buildingGroup?.BuildingsList.Any() ?? true)
             {
                 PowerStorageLogger.LogError($"Building list was empty for AddCapacity {kw}KW. Power providing buildings should be on some kind of grid.");
@@ -37,9 +35,7 @@ namespace PowerStorage
         
         public static void AddConsumption(Vector3 pos, int kw)
         {
-            var building = GetBuildingByPosition(pos);
-            var buildingGroup = MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Contains(building));
-
+            var buildingGroup = MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_position == pos));
             if (!buildingGroup?.BuildingsList.Any() ?? true)
             {
                 PowerStorageLogger.Log($"Building list was empty for AddConsumption {kw}KW");
@@ -115,12 +111,11 @@ namespace PowerStorage
             var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             foreach (var network in networks)
             {
-                var networkAsIndexes = network.Select(b => (ushort)Array.IndexOf(buildings, b)).ToList();
                 var mostMatches = 0;
                 BuildingElectricityGroup bestMatch = null;
                 foreach (var bg in MasterBuildingsList)
                 {
-                    var matches = networkAsIndexes.Count(b => bg.BuildingsList.Contains(b));
+                    var matches = network.Count(b => bg.BuildingsList.Contains(b));
                     if (matches <= mostMatches) 
                         continue;
 
@@ -130,14 +125,14 @@ namespace PowerStorage
 
                 if (bestMatch != null)
                 {
-                    bestMatch.BuildingsList = networkAsIndexes;
+                    bestMatch.BuildingsList = network;
                     bestMatch.LastBuildingUpdate = now;
                 }
                 else
                 {
                     MasterBuildingsList.Add(new BuildingElectricityGroup
                     {
-                        BuildingsList = networkAsIndexes,
+                        BuildingsList = network,
                         LastBuildingUpdate = now
                     });
                 }
@@ -299,11 +294,6 @@ namespace PowerStorage
             }
             PowerStorageLogger.Log($"MapNetwork ({network.Count})");
             return network;
-        }
-
-        private static ushort GetBuildingByPosition(Vector3 pos)
-        {
-            return Singleton<BuildingManager>.instance.FindBuilding(pos, 0.01f, ItemClass.Service.None, ItemClass.SubService.None, Building.Flags.None, Building.Flags.None);
         }
     }
 }

@@ -10,7 +10,7 @@ namespace PowerStorage
         public BuildingElectricityGroup()
         {
             CodeName =  $"{CodeWords[Rnd.Next(0, CodeWords.Length)]}-{CodeWords[Rnd.Next(0, CodeWords.Length)]}";
-            BuildingsList = new List<ushort>();
+            BuildingsList = new List<Building>();
         }
 
         public string CodeName;
@@ -20,6 +20,6 @@ namespace PowerStorage
         public int LastCycleTotalConsumptionKw;
         public int CapacityKw;
         public int ConsumptionKw;
-        public List<ushort> BuildingsList;
+        public List<Building> BuildingsList;
     }
 }

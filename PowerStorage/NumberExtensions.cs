@@ -10,6 +10,10 @@
             return (sillValue * 16 + 500) / 1000;
         }
 
+        public static int ToKw(this ushort sillValue)
+        {
+            return ToKw((int)sillValue);
+        }
         public static int ToKw(this int sillValue)
         {
             return sillValue * 16;

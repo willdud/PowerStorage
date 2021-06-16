@@ -1,8 +1,10 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using ColossalFramework;
 using ColossalFramework.UI;
 using ICities;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace PowerStorage
 { 
@@ -12,7 +14,8 @@ namespace PowerStorage
         public static float ButtonX;
         public static float ButtonY;
         public static int? SelectedNetwork;
-        public static ushort? SelectedBuilding;
+        public static Building? SelectedBuilding;
+        public static ushort SelectedBuildingId;
         public static UIView View;
     }
 
@@ -140,8 +143,8 @@ namespace PowerStorage
                     GUILayout.Label($"Capacity: {c.CapacityKw}KW");
                     GUILayout.Label($"Consumption: {c.ConsumptionKw}KW");
                     GUILayout.FlexibleSpace();
-                    GUILayout.Label($"Capacity Last Week: {c.LastCycleTotalCapacityKw}KW");
-                    GUILayout.Label($"Consumption Last Week: {c.LastCycleTotalConsumptionKw}KW");
+                    GUILayout.Label($"Capacity Last Week: {c.LastCycleTotalCapacityKw/1000f}MW");
+                    GUILayout.Label($"Consumption Last Week: {c.LastCycleTotalConsumptionKw/1000f}MW");
                     GUILayout.FlexibleSpace();
                     GUILayout.Label($"Buildings: {c.BuildingsList.Count}");
                     GUILayout.FlexibleSpace();
@@ -168,10 +171,11 @@ namespace PowerStorage
         
         public Vector2 ScrollPosition2;
         private BuildingElectricityGroup _examinedGroup = null;
-        private ushort[] _buildingList = new ushort[0];
+        private Building[] _buildingList = new Building[0];
+        private NetNode _node;
+
         private void RenderGridScreen(int index)
         {
-            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             if (Event.current.type == EventType.Layout)
             {
                 _examinedGroup = GridsBuildingsRollup.MasterBuildingsList.ElementAt(index);
@@ -186,33 +190,32 @@ namespace PowerStorage
                 GUILayout.Label($"Capacity: {_examinedGroup.CapacityKw}KW");
                 GUILayout.Label($"Consumption: {_examinedGroup.ConsumptionKw}KW");
                 GUILayout.Space(12f);
-                GUILayout.Label($"Capacity Last Week: {_examinedGroup.LastCycleTotalCapacityKw}KW");
-                GUILayout.Label($"Consumption Last Week: {_examinedGroup.LastCycleTotalConsumptionKw}KW");
+                GUILayout.Label($"Capacity Last Week: {_examinedGroup.LastCycleTotalCapacityKw/1000f}MW");
+                GUILayout.Label($"Consumption Last Week: {_examinedGroup.LastCycleTotalConsumptionKw/1000f}MW");
                 GUILayout.Space(12f);
                 GUILayout.Label($"Buildings: {_examinedGroup.BuildingsList.Count}");
                 
                 using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition2, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
                 {
                     ScrollPosition2 = scrollViewScope.scrollPosition;
-                    foreach (var building in _buildingList)
+                    foreach (var buildingStruct in _buildingList)
                     {
-                        var buildingStruct = buffer[building];
                         GUILayout.BeginHorizontal();
-
-                        GUILayout.Label(building.ToString());
-                        GUILayout.FlexibleSpace();
+                        
                         GUILayout.Label(buildingStruct.Info.name);
                         GUILayout.FlexibleSpace();
                         GUILayout.Label(buildingStruct.Info.m_buildingAI.name);
                         GUILayout.FlexibleSpace();
-                        GUILayout.Label(buildingStruct.Info.m_buildingAI.name);
+                        GUILayout.Label($"Level: {buildingStruct.m_level}");
+                        GUILayout.FlexibleSpace();
+                        GUILayout.Label($"Electricity Buffer: {buildingStruct.m_electricityBuffer.ToKw()}KW");
                         GUILayout.FlexibleSpace();
                         if (GUILayout.Button("View"))
                         {
-                            var id = InstanceID.Empty;
-                            id.Building = building;
-                            Singleton<CameraController>.instance.SetTarget(id, buildingStruct.m_position, true);
-                            UiHolder.SelectedBuilding = building;
+                            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
+                            Singleton<CameraController>.instance.SetTarget(buildingStruct.Info.m_instanceID, buildingStruct.m_position, true);
+                            UiHolder.SelectedBuilding = buildingStruct;
+                            UiHolder.SelectedBuildingId = (ushort)Array.IndexOf(buffer, buildingStruct);
                         }
 
                         GUILayout.EndHorizontal();
@@ -230,32 +233,29 @@ namespace PowerStorage
             GUI.DragWindow();
         }
         
-        private void RenderBuildingScreen(ushort buildingIndex)
+        private void RenderBuildingScreen(Building building)
         {
-            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
-            var nodes = Singleton<NetManager>.instance.m_nodes;
-
-            var building = buffer[buildingIndex];
-            var node = nodes.m_buffer.FirstOrDefault(n => n.m_building == buildingIndex);
             if (Event.current.type == EventType.Layout)
-            {
+            {            
+                var nodes = Singleton<NetManager>.instance.m_nodes;
+                _node = nodes.m_buffer.FirstOrDefault(n => n.m_building == UiHolder.SelectedBuildingId);
             }
 
             GUI.contentColor = Color.white;
             GUILayout.Label(building.Info.GetType().ToString());
             GUILayout.Space(12f);
-            GUILayout.Label("Building: " + buildingIndex);
+            GUILayout.Label("Building: " + UiHolder.SelectedBuildingId);
             GUILayout.Label("Building Node: " + building.m_netNode);
-            GUILayout.Label("Next Grid Node: " + node.m_nextGridNode);
-            GUILayout.Label("Node Connect Count: " + node.m_connectCount);
-            GUILayout.Label("Node Segment0: " + node.m_segment0);
-            GUILayout.Label("Node Segment1: " + node.m_segment1);
-            GUILayout.Label("Node Segment2: " + node.m_segment2);
-            GUILayout.Label("Node Segment3: " + node.m_segment3);
-            GUILayout.Label("Node Segment4: " + node.m_segment4);
-            GUILayout.Label("Node Segment5: " + node.m_segment5);
-            GUILayout.Label("Node Segment6: " + node.m_segment6);
-            GUILayout.Label("Node Segment7: " + node.m_segment7);
+            GUILayout.Label("Next Grid Node: " + _node.m_nextGridNode);
+            GUILayout.Label("Node Connect Count: " + _node.m_connectCount);
+            GUILayout.Label("Node Segment0: " + _node.m_segment0);
+            GUILayout.Label("Node Segment1: " + _node.m_segment1);
+            GUILayout.Label("Node Segment2: " + _node.m_segment2);
+            GUILayout.Label("Node Segment3: " + _node.m_segment3);
+            GUILayout.Label("Node Segment4: " + _node.m_segment4);
+            GUILayout.Label("Node Segment5: " + _node.m_segment5);
+            GUILayout.Label("Node Segment6: " + _node.m_segment6);
+            GUILayout.Label("Node Segment7: " + _node.m_segment7);
             
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Back"))
