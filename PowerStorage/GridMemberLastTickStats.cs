@@ -5,6 +5,11 @@ namespace PowerStorage
     [Serializable]
     public class GridMemberLastTickStats
     {
+        // Don't break serialization
+        [Obsolete] public ushort BuildingId { get; set; }
+        [Obsolete] public int ElectricityGridId { get; set; }
+
+            
         public Building Building { get; set; }
         public bool IsOff { get; set; }
         public bool IsActive => ChargeProvidedKw > 0 || ChargeTakenKw > 0;

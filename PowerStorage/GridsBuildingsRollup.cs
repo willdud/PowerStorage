@@ -13,7 +13,7 @@ namespace PowerStorage
         private static int _buildingUpdates = 0;
         public static List<BuildingElectricityGroup> MasterBuildingsList { get; set; }
 
-        public static BuildingElectricityGroup GetGroupContainingBuilding(Building building) => MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_buildIndex == building.m_buildIndex));
+        public static BuildingElectricityGroup GetGroupContainingBuilding(Building building) => MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_position == building.m_position));
 
         static GridsBuildingsRollup()
         {
@@ -25,12 +25,12 @@ namespace PowerStorage
             var buildingGroup = MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_position == pos));
             if (!buildingGroup?.BuildingsList.Any() ?? true)
             {
-                PowerStorageLogger.LogError($"Building list was empty for AddCapacity {kw}KW. Power providing buildings should be on some kind of grid.");
+                PowerStorageLogger.LogWarning($"Building list was empty for AddCapacity {kw}KW. Power providing buildings should be on some kind of grid.", PowerStorageMessageType.Grid);
                 return;
             }
             
             buildingGroup.CapacityKw += kw;
-            PowerStorageLogger.Log($"{kw}KW added to {buildingGroup.CodeName} with {buildingGroup.BuildingsList.Count} members");
+            PowerStorageLogger.Log($"{kw}KW added to {buildingGroup.CodeName} with {buildingGroup.BuildingsList.Count} members", PowerStorageMessageType.Grid);
         }
         
         public static void AddConsumption(Vector3 pos, int kw)
@@ -38,12 +38,12 @@ namespace PowerStorage
             var buildingGroup = MasterBuildingsList.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.m_position == pos));
             if (!buildingGroup?.BuildingsList.Any() ?? true)
             {
-                PowerStorageLogger.Log($"Building list was empty for AddConsumption {kw}KW");
+                PowerStorageLogger.Log($"Building list was empty for AddConsumption {kw}KW", PowerStorageMessageType.Network);
                 return;
             }
             
             buildingGroup.ConsumptionKw += kw;
-            PowerStorageLogger.Log($"{kw}KW removed from {buildingGroup.CodeName} with {buildingGroup.BuildingsList.Count} members");
+            PowerStorageLogger.Log($"{kw}KW removed from {buildingGroup.CodeName} with {buildingGroup.BuildingsList.Count} members", PowerStorageMessageType.Grid);
         }
         
 
@@ -54,6 +54,8 @@ namespace PowerStorage
             var basicallyHalf = frameLoopedAt256 * 128 >> 8; // Logic stolen from DistrictManager, every 512 frames, will come through here twice as each number 
             if (basicallyHalf != 0 || frameLoopedAt256 % 2 == 0) 
                 return;
+            
+            PowerStorageLogger.Log($"{DateTime.Now:HH:mm:ss} - {frameLoopedAt256} - {basicallyHalf}", PowerStorageMessageType.Simulation);
 
             foreach (var bg in MasterBuildingsList)
             {
@@ -87,7 +89,7 @@ namespace PowerStorage
             beg.LastCycleTotalConsumptionKw = beg.ConsumptionKw;
             beg.CapacityKw = 0;
             beg.ConsumptionKw = 0;
-            PowerStorageLogger.Log($"This Group made: {beg.LastCycleTotalCapacityKw} and spent: {beg.LastCycleTotalConsumptionKw}");
+            PowerStorageLogger.Log($"This Group made: {beg.LastCycleTotalCapacityKw} and spent: {beg.LastCycleTotalConsumptionKw}", PowerStorageMessageType.Grid);
         }
 
         private static readonly Type[] IncludedTypes =
@@ -106,16 +108,16 @@ namespace PowerStorage
 
         private static void MergeNetworksWithMaster(List<List<Building>> networks)
         {
+            PowerStorageLogger.Log($"Merging networks ({MasterBuildingsList.Count})", PowerStorageMessageType.NetworkMerging);
             var watch = PowerStorageProfiler.Start("MergeNetworksWithMaster");
             var now = Singleton<SimulationManager>.instance.m_currentGameTime;
-            var buildings = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
             foreach (var network in networks)
             {
                 var mostMatches = 0;
                 BuildingElectricityGroup bestMatch = null;
                 foreach (var bg in MasterBuildingsList)
                 {
-                    var matches = network.Count(b => bg.BuildingsList.Contains(b));
+                    var matches = network.Count(b => bg.BuildingsList.Any(ib => b.m_position == ib.m_position));
                     if (matches <= mostMatches) 
                         continue;
 
@@ -125,11 +127,13 @@ namespace PowerStorage
 
                 if (bestMatch != null)
                 {
+                    PowerStorageLogger.Log($"Existing network updated - Cap: {bestMatch.LastCycleTotalCapacityKw}KW - Con: {bestMatch.LastCycleTotalConsumptionKw}KW", PowerStorageMessageType.NetworkMerging);
                     bestMatch.BuildingsList = network;
                     bestMatch.LastBuildingUpdate = now;
                 }
                 else
                 {
+                    PowerStorageLogger.Log("New Network Added", PowerStorageMessageType.NetworkMerging);
                     MasterBuildingsList.Add(new BuildingElectricityGroup
                     {
                         BuildingsList = network,
@@ -138,13 +142,13 @@ namespace PowerStorage
                 }
             }
             PowerStorageProfiler.Lap("MergeNetworksWithMaster", watch);
-            PowerStorageLogger.Log($"Merging networks ({MasterBuildingsList.Count})");
             for (var i = MasterBuildingsList.Count - 1; i >= 0; i--)
             {
                 if(MasterBuildingsList[i].LastBuildingUpdate != now)
                     MasterBuildingsList.RemoveAt(i);
             }
             PowerStorageProfiler.Stop("MergeNetworksWithMaster", watch);
+            PowerStorageLogger.Log($"Done Merging networks ({MasterBuildingsList.Count})", PowerStorageMessageType.NetworkMerging);
         }
 
         private static float DistanceBetweenPoints(Building one, Building two)
@@ -160,7 +164,7 @@ namespace PowerStorage
             networks = new List<List<Building>>();
             while(unmappedPoints.Any())
             {
-                PowerStorageLogger.Log($"MapNetworks unmappedPoints({unmappedPoints.Count})");
+                PowerStorageLogger.Log($"MapNetworks unmappedPoints({unmappedPoints.Count})", PowerStorageMessageType.NetworkMapping);
                 var point = unmappedPoints.First();
                 var network = MapNetwork(point, unmappedPoints);
                 unmappedPoints = unmappedPoints.Except(network).ToList();
@@ -193,8 +197,8 @@ namespace PowerStorage
                 var buildingIndex = Array.IndexOf(buildings.m_buffer, building);
                 var node = nodes.m_buffer.FirstOrDefault(n => n.m_building == buildingIndex);
 
-                PowerStorageLogger.Log($"Building {building.Info.name}. b:{buildingIndex} x:{building.m_position.x} z:{building.m_position.z}");
-                PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}");
+                PowerStorageLogger.Log($"Building {building.Info.name}. b:{buildingIndex} x:{building.m_position.x} z:{building.m_position.z}", PowerStorageMessageType.NetworkMapping);
+                PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}", PowerStorageMessageType.NetworkMapping);
                 
                 var watch2 = PowerStorageProfiler.Start("CollectBuildingIdsOnNetwork");
                 var nodesExplored = CollectBuildingIdsOnNetwork(node, new List<ushort>());
@@ -206,7 +210,7 @@ namespace PowerStorage
                     if (network == networks[i])
                         continue;
 
-                    if (networks[i].Any(n => nodesExplored.Contains(n)))
+                    if (networks[i].Any(n => nodesExplored.Any(b => n.m_position == b.m_position)))
                         networksToCombine.Add(i);
                 }
 
@@ -224,8 +228,8 @@ namespace PowerStorage
                 PowerStorageProfiler.Lap("JoinNetworksByNodes", watch);
             }
 
-            PowerStorageLogger.Log($"Removing Networks-A ({networksToRemove.Count}) {string.Join(", ", networksToRemove.Select(i => i.ToString()).ToArray())}");
-            PowerStorageLogger.Log($"Removing Networks-B ({networks.Count})");
+            PowerStorageLogger.Log($"Removing Networks-A ({networksToRemove.Count}) {string.Join(", ", networksToRemove.Select(i => i.ToString()).ToArray())}", PowerStorageMessageType.NetworkMapping);
+            PowerStorageLogger.Log($"Removing Networks-B ({networks.Count})", PowerStorageMessageType.NetworkMapping);
             foreach (var i in networksToRemove.Distinct().OrderByDescending(n => n))
             {
                 networks.RemoveAt(i);
@@ -270,7 +274,7 @@ namespace PowerStorage
             Get(node.m_segment7);
 
             var building = Singleton<BuildingManager>.instance.m_buildings.m_buffer[node.m_building];
-            if(!connectedNodesBuildings.Contains(building))
+            if(!connectedNodesBuildings.Any(cnb => cnb.m_position == building.m_position))
                 connectedNodesBuildings.Add(building);
 
             return connectedNodesBuildings;
@@ -292,7 +296,7 @@ namespace PowerStorage
                 unmappedPoints.Remove(newPoint);
                 network.AddRange(MapNetwork(newPoint, unmappedPoints));
             }
-            PowerStorageLogger.Log($"MapNetwork ({network.Count})");
+            PowerStorageLogger.Log($"MapNetwork ({network.Count})", PowerStorageMessageType.NetworkMapping);
             return network;
         }
     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Linq;
 using ColossalFramework;
 using ColossalFramework.UI;
@@ -25,12 +26,12 @@ namespace PowerStorage
 
         public override void OnLevelLoaded(LoadMode mode)
 		{
-            PowerStorageLogger.Log("Loading");
+            PowerStorageLogger.Log("Loading", PowerStorageMessageType.Loading);
             if (_powerStorageUiObj == null)
             {
                 if (mode == LoadMode.NewGame || mode == LoadMode.LoadGame)
                 {
-                    PowerStorageLogger.Log("Add UI");
+                    PowerStorageLogger.Log("Add UI", PowerStorageMessageType.Ui);
                     _powerStorageUiObj = new GameObject();
                     _powerStorageUiObj.AddComponent<Ui>();
                     _powerStorageUiObj.name = "PowerStorageUiObj";
@@ -41,7 +42,7 @@ namespace PowerStorage
             UiHolder.View = view;
             var c = UIView.Find("TSBar");;
             UiHolder.TsBar = c;
-            PowerStorageLogger.Log($"TS: {c?.name}");
+            PowerStorageLogger.Log($"TS: {c?.name}", PowerStorageMessageType.Ui);
 
             var pos = c.absolutePosition;
             UiHolder.ButtonX = (pos.x + c.width) * view.inputScale - 2;
@@ -50,7 +51,7 @@ namespace PowerStorage
 
 		public override void OnLevelUnloading()
         {
-            PowerStorageLogger.Log($"OnLevelUnloading");
+            PowerStorageLogger.Log($"OnLevelUnloading", PowerStorageMessageType.Loading);
             if (_powerStorageUiObj == null) 
                 return;
 
@@ -63,6 +64,7 @@ namespace PowerStorage
     {
         private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 650, 1200, 500);
         private bool _showingWindow = false;
+        private bool _showingFacilities = false;
         private bool _uiSetup = false;
         private UIButton _button;
 
@@ -78,7 +80,7 @@ namespace PowerStorage
 
         private void ButtonClick(UIComponent sender, UIMouseEventParameter e)
         {
-            PowerStorageLogger.Log("Button clicked");
+            PowerStorageLogger.Log("Button clicked", PowerStorageMessageType.Ui);
             _showingWindow = !_showingWindow;
         }
 
@@ -88,13 +90,13 @@ namespace PowerStorage
             {
                 if (!_uiSetup)
                 {
-                    PowerStorageLogger.Log("Setting up UI");
+                    PowerStorageLogger.Log("Setting up UI", PowerStorageMessageType.Ui);
                     SetupUi();
                 }
 
                 if (_showingWindow)
                 {
-                    _windowRect.position = new Vector2(25, 25);
+                    _windowRect.position = new Vector2(25, 50);
                     _windowRect = GUILayout.Window(314, _windowRect, ShowPowerStorageWindow, "Power Storage - Grid Stats");
                 }
             }
@@ -102,7 +104,11 @@ namespace PowerStorage
 
         void ShowPowerStorageWindow(int windowId)
         {
-            if (UiHolder.SelectedNetwork.HasValue)
+            if (_showingFacilities)
+            {
+                RenderFacilitiesScreen();
+            } 
+            else if (UiHolder.SelectedNetwork.HasValue)
             {
                 if (UiHolder.SelectedBuilding.HasValue)
                 {
@@ -148,6 +154,8 @@ namespace PowerStorage
                     GUILayout.FlexibleSpace();
                     GUILayout.Label($"Buildings: {c.BuildingsList.Count}");
                     GUILayout.FlexibleSpace();
+                    GUILayout.Label($"Updated: {c.LastBuildingUpdate:HH:mm:ss}");
+                    GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Show"))
                     {
                         UiHolder.SelectedNetwork = index;
@@ -156,7 +164,14 @@ namespace PowerStorage
                     GUILayout.EndHorizontal();
                 }
             }
-
+            
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Storage Facilities"))
+            {
+                _showingFacilities = true;
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.Space(12);
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Close"))
             {
@@ -167,7 +182,6 @@ namespace PowerStorage
 
             GUI.DragWindow();
         }
-
         
         public Vector2 ScrollPosition2;
         private BuildingElectricityGroup _examinedGroup = null;
@@ -204,18 +218,20 @@ namespace PowerStorage
                         
                         GUILayout.Label(buildingStruct.Info.name);
                         GUILayout.FlexibleSpace();
-                        GUILayout.Label(buildingStruct.Info.m_buildingAI.name);
-                        GUILayout.FlexibleSpace();
-                        GUILayout.Label($"Level: {buildingStruct.m_level}");
-                        GUILayout.FlexibleSpace();
                         GUILayout.Label($"Electricity Buffer: {buildingStruct.m_electricityBuffer.ToKw()}KW");
                         GUILayout.FlexibleSpace();
                         if (GUILayout.Button("View"))
                         {
                             var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
-                            Singleton<CameraController>.instance.SetTarget(buildingStruct.Info.m_instanceID, buildingStruct.m_position, true);
-                            UiHolder.SelectedBuilding = buildingStruct;
-                            UiHolder.SelectedBuildingId = (ushort)Array.IndexOf(buffer, buildingStruct);
+                            var id = InstanceID.Empty;
+                            var buildingIndex = (ushort) Array.IndexOf(buffer, buildingStruct);
+                            id.Building = buildingIndex;
+                            Singleton<CameraController>.instance.SetTarget(id, buildingStruct.m_position, true);
+                            if (false)
+                            {
+                                UiHolder.SelectedBuilding = buildingStruct;
+                                UiHolder.SelectedBuildingId = (ushort)Array.IndexOf(buffer, buildingStruct);
+                            }
                         }
 
                         GUILayout.EndHorizontal();
@@ -261,6 +277,52 @@ namespace PowerStorage
             if (GUILayout.Button("Back"))
             {
                 UiHolder.SelectedBuilding = null;
+            }
+            GUILayout.EndHorizontal();
+
+            GUI.DragWindow();
+        }
+
+        // ushort / GridMemberLastTickStats
+        private Hashtable _snapshotOfBackupGrid = null;
+        public Vector2 ScrollPosition3;
+        private void RenderFacilitiesScreen()
+        {
+            if (Event.current.type == EventType.Layout)
+            {
+                _snapshotOfBackupGrid = (Hashtable)PowerStorageAi.BackupGrid.Clone();
+            }
+
+            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition3, false, true,
+                GUILayout.Width(1200), GUILayout.Height(450)))
+            {
+                ScrollPosition3 = scrollViewScope.scrollPosition;
+
+                GUI.contentColor = Color.white;
+                foreach (DictionaryEntry entry in _snapshotOfBackupGrid)
+                {
+                    var id = (ushort) entry.Key;
+                    var member = (GridMemberLastTickStats) entry.Value;
+
+                    GUILayout.Label(id.ToString());
+                    GUILayout.Label("Type: " + member.Building.Info.name);                    
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Is Active: " + member.IsActive);
+                    GUILayout.Label("   Is Full: " + member.IsFull);
+                    GUILayout.Label("   Is Off: " + member.IsOff);
+                    GUILayout.EndHorizontal();
+                    GUILayout.Label("Charge: " + member.CurrentChargeKw + "KW / " + member.CapacityKw + "KW");
+                    GUILayout.Label("Potential Output: " + member.PotentialOutputKw + "KW");
+                    GUILayout.Label("Currently Providing: " + member.ChargeProvidedKw + "KW");
+                    GUILayout.Label("Currently Drawing: " + member.ChargeTakenKw + "KW - Loss: " + member.LossKw + "KW");
+                    GUILayout.Space(12f);
+                }
+            }
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Back"))
+            {
+                _showingFacilities = false;
             }
             GUILayout.EndHorizontal();
 

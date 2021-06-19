@@ -13,11 +13,11 @@ namespace PowerStorage
             
         public override void OnLoadData()
         {
-            PowerStorageLogger.Log("Loading data. Time: " + Time.realtimeSinceStartup);
+            PowerStorageLogger.Log("Loading data. Time: " + Time.realtimeSinceStartup, PowerStorageMessageType.Loading);
             var data = serializableDataManager.LoadData(GridKey);
             if (data == null)
             {
-                PowerStorageLogger.Log("No data to load.");
+                PowerStorageLogger.Log("No data to load.", PowerStorageMessageType.Loading);
                 return;
             }
 
@@ -29,11 +29,13 @@ namespace PowerStorage
             try
             {
                 PowerStorageAi.BackupGrid = (Hashtable)binaryFormatter.Deserialize(memStream);
-                PowerStorageLogger.Log("Finished loading data. Time: " + Time.realtimeSinceStartup);
+                PowerStorageLogger.Log("Finished loading data. Time: " + Time.realtimeSinceStartup, PowerStorageMessageType.Loading);
             }
             catch (Exception e)
             {
-                PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " loading data.");
+                PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " loading data.", PowerStorageMessageType.Loading);
+                PowerStorageLogger.LogError(e.Message, PowerStorageMessageType.Loading);
+                PowerStorageLogger.LogError(e.StackTrace, PowerStorageMessageType.Loading);
             }
             finally
             {
@@ -43,20 +45,20 @@ namespace PowerStorage
 
         public override void OnSaveData()
         {
-            PowerStorageLogger.Log("Saving data");
+            PowerStorageLogger.Log("Saving data", PowerStorageMessageType.Saving);
             var binaryFormatter = new BinaryFormatter();
             var memStream = new MemoryStream();
             try
             {
                 binaryFormatter.Serialize(memStream, PowerStorageAi.BackupGrid);
                 serializableDataManager.SaveData(GridKey, memStream.ToArray());
-                PowerStorageLogger.Log("Finished saving data");
+                PowerStorageLogger.Log("Finished saving data", PowerStorageMessageType.Saving);
             }
             catch (Exception e)
             {
-                PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " saving data.");
-                PowerStorageLogger.LogError(e.Message);
-                PowerStorageLogger.LogError(e.StackTrace);
+                PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " saving data.", PowerStorageMessageType.Saving);
+                PowerStorageLogger.LogError(e.Message, PowerStorageMessageType.Saving);
+                PowerStorageLogger.LogError(e.StackTrace, PowerStorageMessageType.Saving);
             }
             finally
             {

@@ -14,7 +14,7 @@ namespace PowerStorage
                 return;
 
             _patched = true;
-            PowerStorageLogger.Log("Harmony Patching...");
+            PowerStorageLogger.Log("Harmony Patching...", PowerStorageMessageType.All);
             var harmony = CreateHarmony();
             
             harmony.PatchAll(typeof(PowerStorage).Assembly);
@@ -28,7 +28,7 @@ namespace PowerStorage
             var harmony = CreateHarmony();
             harmony.UnpatchAll(HarmonyId);
 
-            PowerStorageLogger.Log("Harmony Patches Reverted");
+            PowerStorageLogger.Log("Harmony Patches Reverted", PowerStorageMessageType.All);
             _patched = false;
         }
 
