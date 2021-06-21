@@ -10,7 +10,7 @@ namespace PowerStorage
         [Obsolete] public int ElectricityGridId { get; set; }
 
             
-        public Building Building { get; set; }
+        public BuildingAndIndex BuildingPair { get; set; }
         public bool IsOff { get; set; }
         public bool IsActive => ChargeProvidedKw > 0 || ChargeTakenKw > 0;
         public bool IsFull => CurrentChargeKw >= CapacityKw;

@@ -62,7 +62,7 @@ namespace PowerStorage
 
     public class Ui : MonoBehaviour
     {
-        private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 650, 1200, 500);
+        private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 650, 1000, 500);
         private bool _showingWindow = false;
         private bool _showingFacilities = false;
         private bool _uiSetup = false;
@@ -96,8 +96,11 @@ namespace PowerStorage
 
                 if (_showingWindow)
                 {
-                    _windowRect.position = new Vector2(25, 50);
                     _windowRect = GUILayout.Window(314, _windowRect, ShowPowerStorageWindow, "Power Storage - Grid Stats");
+                    if (_windowRect.x < -800 || _windowRect.y < -300 || _windowRect.x >= Screen.width || _windowRect.y >= Screen.height)
+                    {
+                        _windowRect.position = new Vector2(Screen.width - 1200, Screen.height - 650);
+                    }
                 }
             }
         }
@@ -142,6 +145,13 @@ namespace PowerStorage
                     if (c == null || !c.BuildingsList.Any())
                         continue;
 
+                    if(c.LastCycleTotalCapacityKw == c.LastCycleTotalConsumptionKw)
+                        GUI.contentColor = Color.white;
+                    else if (c.LastCycleTotalConsumptionKw > c.LastCycleTotalCapacityKw)
+                        GUI.contentColor = Color.red;
+                    else
+                        GUI.contentColor = Color.green;
+
                     GUILayout.BeginHorizontal();
                     GUILayout.Label(c.CodeName);
                     GUILayout.FlexibleSpace();
@@ -185,7 +195,7 @@ namespace PowerStorage
         
         public Vector2 ScrollPosition2;
         private BuildingElectricityGroup _examinedGroup = null;
-        private Building[] _buildingList = new Building[0];
+        private BuildingAndIndex[] _buildingList = new BuildingAndIndex[0];
         private NetNode _node;
 
         private void RenderGridScreen(int index)
@@ -198,7 +208,12 @@ namespace PowerStorage
 
             if (_examinedGroup != null)
             {
-                GUI.contentColor = Color.white;
+                if(_examinedGroup.LastCycleTotalCapacityKw == _examinedGroup.LastCycleTotalConsumptionKw)
+                    GUI.contentColor = Color.white;
+                else if (_examinedGroup.LastCycleTotalConsumptionKw > _examinedGroup.LastCycleTotalCapacityKw)
+                    GUI.contentColor = Color.red;
+                else
+                    GUI.contentColor = Color.green;
                 
                 GUILayout.Label(_examinedGroup.CodeName);
                 GUILayout.Label($"Capacity: {_examinedGroup.CapacityKw}KW");
@@ -209,28 +224,28 @@ namespace PowerStorage
                 GUILayout.Space(12f);
                 GUILayout.Label($"Buildings: {_examinedGroup.BuildingsList.Count}");
                 
-                using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition2, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
+                GUI.contentColor = Color.white;
+                using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition2, false, true, GUILayout.Width(1200), GUILayout.Height(300)))
                 {
                     ScrollPosition2 = scrollViewScope.scrollPosition;
-                    foreach (var buildingStruct in _buildingList)
+                    foreach (var o in _buildingList)
                     {
                         GUILayout.BeginHorizontal();
                         
-                        GUILayout.Label(buildingStruct.Info.name);
+                        GUILayout.Label(o.Building.Info.name);
                         GUILayout.FlexibleSpace();
-                        GUILayout.Label($"Electricity Buffer: {buildingStruct.m_electricityBuffer.ToKw()}KW");
+                        GUILayout.Label($"Electricity Buffer: {o.Building.m_electricityBuffer.ToKw()}KW");
                         GUILayout.FlexibleSpace();
                         if (GUILayout.Button("View"))
                         {
-                            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
                             var id = InstanceID.Empty;
-                            var buildingIndex = (ushort) Array.IndexOf(buffer, buildingStruct);
+                            var buildingIndex = o.Index;
                             id.Building = buildingIndex;
-                            Singleton<CameraController>.instance.SetTarget(id, buildingStruct.m_position, true);
+                            Singleton<CameraController>.instance.SetTarget(id, o.Building.m_position, true);
                             if (false)
                             {
-                                UiHolder.SelectedBuilding = buildingStruct;
-                                UiHolder.SelectedBuildingId = (ushort)Array.IndexOf(buffer, buildingStruct);
+                                UiHolder.SelectedBuilding = o.Building;
+                                UiHolder.SelectedBuildingId = o.Index;
                             }
                         }
 
@@ -293,29 +308,52 @@ namespace PowerStorage
                 _snapshotOfBackupGrid = (Hashtable)PowerStorageAi.BackupGrid.Clone();
             }
 
-            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition3, false, true,
-                GUILayout.Width(1200), GUILayout.Height(450)))
+            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition3, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
             {
                 ScrollPosition3 = scrollViewScope.scrollPosition;
 
                 GUI.contentColor = Color.white;
                 foreach (DictionaryEntry entry in _snapshotOfBackupGrid)
                 {
-                    var id = (ushort) entry.Key;
+                    var buildingIndex = (ushort) entry.Key;
                     var member = (GridMemberLastTickStats) entry.Value;
+                    
+                    if(member.ChargeProvidedKw == 0 && member.ChargeTakenKw == 0)
+                        GUI.contentColor = Color.white;
+                    else if (member.ChargeProvidedKw > 0)
+                        GUI.contentColor = Color.red;
+                    else
+                        GUI.contentColor = Color.green;
 
-                    GUILayout.Label(id.ToString());
-                    GUILayout.Label("Type: " + member.Building.Info.name);                    
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Id: " + buildingIndex);
+                    GUILayout.Label("Type: " + member.BuildingPair.Building.Info.name);   
+                    if (GUILayout.Button("View"))
+                    {
+                        var id = InstanceID.Empty;
+                        id.Building = buildingIndex;
+                        Singleton<CameraController>.instance.SetTarget(id, member.BuildingPair.Building.m_position, true);
+                        if (false)
+                        {
+                            UiHolder.SelectedBuilding = member.BuildingPair.Building;
+                            UiHolder.SelectedBuildingId = member.BuildingPair.Index;
+                        }
+                    }
+                    GUILayout.EndHorizontal();                
+                    
+                    GUI.contentColor = Color.white;
                     GUILayout.BeginHorizontal();
                     GUILayout.Label("Is Active: " + member.IsActive);
-                    GUILayout.Label("   Is Full: " + member.IsFull);
-                    GUILayout.Label("   Is Off: " + member.IsOff);
+                    GUILayout.Label("Is Full: " + member.IsFull);
+                    GUILayout.Label("Is Off: " + member.IsOff);
                     GUILayout.EndHorizontal();
+
                     GUILayout.Label("Charge: " + member.CurrentChargeKw + "KW / " + member.CapacityKw + "KW");
                     GUILayout.Label("Potential Output: " + member.PotentialOutputKw + "KW");
                     GUILayout.Label("Currently Providing: " + member.ChargeProvidedKw + "KW");
                     GUILayout.Label("Currently Drawing: " + member.ChargeTakenKw + "KW - Loss: " + member.LossKw + "KW");
-                    GUILayout.Space(12f);
+                    GUILayout.Space(22f);
+
                 }
             }
 

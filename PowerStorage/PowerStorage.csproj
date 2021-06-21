@@ -81,6 +81,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BuildingAndIndex.cs" />
     <Compile Include="BuildingElectricityGroup.cs" />
     <Compile Include="ElectricityManagerPatcher.cs" />
     <Compile Include="PowerStorageAi.cs" />
