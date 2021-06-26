@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System.Linq;
+using HarmonyLib;
 using UnityEngine;
 
 namespace PowerStorage
@@ -38,8 +39,7 @@ namespace PowerStorage
         }
     }
 
-    [HarmonyPatch(typeof(ElectricityManager))]
-    [HarmonyPatch(nameof(ElectricityManager.TryFetchElectricity))]
+    [HarmonyPatch(typeof(ElectricityManager), nameof(ElectricityManager.TryFetchElectricity))]
     [HarmonyPatch(MethodType.Normal, typeof(Vector3), typeof(int), typeof(int))]
     class PatchTryFetchElectricity
     {
@@ -49,8 +49,7 @@ namespace PowerStorage
         }
     }
 
-    [HarmonyPatch(typeof(ElectricityManager))]
-    [HarmonyPatch(nameof(ElectricityManager.TryDumpElectricity))]
+    [HarmonyPatch(typeof(ElectricityManager), nameof(ElectricityManager.TryDumpElectricity))]
     [HarmonyPatch(MethodType.Normal, typeof(Vector3), typeof(int), typeof(int))]
     class PatchTryDumpElectricity
     {
@@ -60,14 +59,59 @@ namespace PowerStorage
         }
     }
 
-    [HarmonyPatch(typeof(ElectricityManager))]
-    [HarmonyPatch(nameof(ElectricityManager.UpdateGrid))]
+    [HarmonyPatch(typeof(ElectricityManager), nameof(ElectricityManager.UpdateGrid))]
     [HarmonyPatch(MethodType.Normal, typeof(float), typeof(float), typeof(float), typeof(float))]
     class PatchUpdateGrid
     {
         static void Prefix(float minX, float minZ, float maxX, float maxZ)
         {
             GridsBuildingsRollup.UpdateGrid();
+        }
+    }
+
+    [HarmonyPatch(typeof(BuildingAI), nameof(BuildingAI.CreateBuilding))]
+    class PatchCreateBuilding
+    {
+        static void Prefix(ushort buildingID, ref Building data)
+        {
+            PowerStorage.RegisterBuilding(buildingID, data);
+        }
+    }
+
+    [HarmonyPatch(typeof(BuildingAI), nameof(BuildingAI.ReleaseBuilding))]
+    class PatchReleaseBuilding
+    {
+        static void Prefix(ushort buildingID, ref Building data)
+        {
+            var pair = GridsBuildingsRollup.MasterBuildingList.FirstOrDefault(p => p.Index == buildingID);
+            if (pair != null)
+            {
+                Object.Destroy(pair.GridGameObject);
+                GridsBuildingsRollup.MasterBuildingList.Remove(pair);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(BuildingAI), nameof(BuildingAI.BeginRelocating))]
+    class PatchBeginRelocating
+    {
+        static void Prefix(ushort buildingID, ref Building data)
+        {
+            var pair = GridsBuildingsRollup.MasterBuildingList.FirstOrDefault(p => p.Index == buildingID);
+            if (pair != null)
+            {
+                Object.Destroy(pair.GridGameObject);
+                GridsBuildingsRollup.MasterBuildingList.Remove(pair);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(BuildingAI), nameof(BuildingAI.EndRelocating))]
+    class PatchEndRelocating
+    {
+        static void Prefix(ushort buildingID, ref Building data)
+        {
+            PowerStorage.RegisterBuilding(buildingID, data);
         }
     }
 }

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.ComponentModel.Design;
 using System.Linq;
 using ColossalFramework;
 using UnityEngine;
@@ -28,15 +27,19 @@ namespace PowerStorage
             InitialiseBuilding(buildingId, data);
         }
 
-        private void InitialiseBuilding(ushort buildingId, Building data)
+        private GridMemberLastTickStats InitialiseBuilding(ushort buildingId, Building data)
         {
             m_resourceType = TransferManager.TransferReason.None;
-            BackupGrid[buildingId] = new GridMemberLastTickStats
+            var pair = GridsBuildingsRollup.MasterBuildingList.FirstOrDefault(b => b.Building.m_position == data.m_position) ?? PowerStorage.RegisterBuilding(buildingId, data);
+            
+            var newGrid = new GridMemberLastTickStats
             {
-                BuildingPair = new BuildingAndIndex(buildingId, data),
+                BuildingPair = pair,
                 CapacityKw = m_resourceCapacity.ToKw(),
                 PotentialOutputKw = m_resourceConsumption.ToKw()
             };
+            BackupGrid[buildingId] = newGrid;
+            return newGrid;
         }
 
         public override void ReleaseBuilding(ushort buildingId, ref Building data)
@@ -76,8 +79,10 @@ namespace PowerStorage
             int totalVisitorCount,
             int visitPlaceCount)
         {
-            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
-
+            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats;
+            if (myGridData?.BuildingPair?.GridGameObject == null)
+                myGridData = InitialiseBuilding(buildingId, buildingData);
+            
             var energyCapacityKw = myGridData.CapacityKw;
             var energyReserveKw = myGridData.CurrentChargeKw;
             
@@ -208,8 +213,10 @@ namespace PowerStorage
             }
             else
                 calculatedRate = 0;
-            
-            var demandKw = GetLocalPowerDemand(new BuildingAndIndex(buildingId, data));
+
+            var position = data.m_position;
+            var pair = GridsBuildingsRollup.MasterBuildingList.FirstOrDefault(b => b.Building.m_position == position) ?? PowerStorage.RegisterBuilding(buildingId, data);
+            var demandKw = GetLocalPowerDemand(pair);
             GetElectricityProduction(out _, out var max);
             max = max.ToKw();
             var output = Math.Min(demandKw, energyReserveKw); // Kw
@@ -242,8 +249,6 @@ namespace PowerStorage
             if (grid == null)
             {
                 PowerStorageLogger.Log("Power Storage building is not part of any grid.", PowerStorageMessageType.Grid);
-                var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
-                InitialiseBuilding(pair.Index, pair.Building);
                 return 0;
             }
 

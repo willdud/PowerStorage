@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using ColossalFramework;
 using ColossalFramework.UI;
@@ -65,6 +65,7 @@ namespace PowerStorage
         private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 650, 1000, 500);
         private bool _showingWindow = false;
         private bool _showingFacilities = false;
+        private bool _showingColliders = false;
         private bool _uiSetup = false;
         private UIButton _button;
 
@@ -111,6 +112,10 @@ namespace PowerStorage
             {
                 RenderFacilitiesScreen();
             } 
+            else if (_showingColliders)
+            {
+                RenderCollidersScreen();
+            } 
             else if (UiHolder.SelectedNetwork.HasValue)
             {
                 if (UiHolder.SelectedBuilding.HasValue)
@@ -129,19 +134,19 @@ namespace PowerStorage
         }
 
         public Vector2 ScrollPosition1;
-        BuildingElectricityGroup[] _begClone = new BuildingElectricityGroup[0];
+        private KeyValuePair<int, BuildingElectricityGroup>[] _begClone = new KeyValuePair<int, BuildingElectricityGroup>[0];
         private void RenderStatsScreen()
         {
             if(Event.current.type == EventType.Layout)
-                _begClone = GridsBuildingsRollup.MasterBuildingsList.ToArray();
-
-            var index = 0;
+                _begClone = GridsBuildingsRollup.BuildingsGroupedToNetworks.Select((g, i) => new KeyValuePair<int, BuildingElectricityGroup>(i, g)).OrderByDescending(bg => bg.Value.BuildingsList.Count).ToArray();
+            
             using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition1, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
             {
                 ScrollPosition1 = scrollViewScope.scrollPosition;
 
-                foreach (var c in _begClone)
+                foreach (var beg in _begClone)
                 {
+                    var c = beg.Value;
                     if (c == null || !c.BuildingsList.Any())
                         continue;
 
@@ -168,9 +173,8 @@ namespace PowerStorage
                     GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Show"))
                     {
-                        UiHolder.SelectedNetwork = index;
+                        UiHolder.SelectedNetwork = beg.Key;
                     }
-                    index++;
                     GUILayout.EndHorizontal();
                 }
             }
@@ -179,6 +183,14 @@ namespace PowerStorage
             if (GUILayout.Button("Storage Facilities"))
             {
                 _showingFacilities = true;
+                _showingColliders = false;
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Colliders"))
+            {
+                _showingFacilities = false;
+                _showingColliders = true;
             }
             GUILayout.EndHorizontal();
             GUILayout.Space(12);
@@ -202,7 +214,7 @@ namespace PowerStorage
         {
             if (Event.current.type == EventType.Layout)
             {
-                _examinedGroup = GridsBuildingsRollup.MasterBuildingsList.ElementAt(index);
+                _examinedGroup = GridsBuildingsRollup.BuildingsGroupedToNetworks.ElementAt(index);
                 _buildingList = _examinedGroup.BuildingsList.ToArray();
             }
 
@@ -239,8 +251,7 @@ namespace PowerStorage
                         if (GUILayout.Button("View"))
                         {
                             var id = InstanceID.Empty;
-                            var buildingIndex = o.Index;
-                            id.Building = buildingIndex;
+                            id.Building = o.Index;
                             Singleton<CameraController>.instance.SetTarget(id, o.Building.m_position, true);
                             if (false)
                             {
@@ -299,7 +310,7 @@ namespace PowerStorage
         }
 
         // ushort / GridMemberLastTickStats
-        private Hashtable _snapshotOfBackupGrid = null;
+        private Hashtable _snapshotOfBackupGrid;
         public Vector2 ScrollPosition3;
         private void RenderFacilitiesScreen()
         {
@@ -360,6 +371,47 @@ namespace PowerStorage
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Back"))
             {
+                _showingFacilities = false;
+            }
+            GUILayout.EndHorizontal();
+
+            GUI.DragWindow();
+        }
+        
+        public Vector2 ScrollPosition4;
+        private static BuildingAndIndex[] _snapshotOfColliders;
+        private void RenderCollidersScreen()
+        {
+            if (Event.current.type == EventType.Layout)
+            {
+                _snapshotOfColliders = GridsBuildingsRollup.MasterBuildingList.Take(50).ToArray();
+            }
+
+            using (var scrollViewScope = new GUILayout.ScrollViewScope(ScrollPosition4, false, true, GUILayout.Width(1200), GUILayout.Height(450)))
+            {
+                ScrollPosition4 = scrollViewScope.scrollPosition;
+
+                GUI.contentColor = Color.white;
+                foreach (var bi in _snapshotOfColliders)
+                {
+                    var entry = bi.GridGameObject.GetComponent<BoxCollider>();
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Name: " + entry.name);
+                    GUILayout.Label("Tag: " + entry.tag); 
+                    GUILayout.Label("Enabled: " + entry.enabled);
+                    GUILayout.Label("Size: " + entry.size + " | Center:" + entry.center);
+                    GUILayout.Label("Bounds: " + entry.bounds.size + " | Center:" + entry.bounds.center);
+                    GUILayout.Label("Transform: pos:" + entry.transform?.position + " | lpos:" + entry.transform?.localPosition);
+                    GUILayout.Label("Rigid: pos:" + entry.attachedRigidbody?.position + " | detect:" + entry.attachedRigidbody?.detectCollisions);
+                    GUILayout.Label("Is Trigger: " + entry.isTrigger);
+                    GUILayout.EndHorizontal();
+                }
+            }
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Back"))
+            {
+                _showingColliders = false;
                 _showingFacilities = false;
             }
             GUILayout.EndHorizontal();

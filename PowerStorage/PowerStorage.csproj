@@ -83,6 +83,7 @@
   <ItemGroup>
     <Compile Include="BuildingAndIndex.cs" />
     <Compile Include="BuildingElectricityGroup.cs" />
+    <Compile Include="CollisionList.cs" />
     <Compile Include="ElectricityManagerPatcher.cs" />
     <Compile Include="PowerStorageAi.cs" />
     <Compile Include="GridMemberLastTickStats.cs" />
