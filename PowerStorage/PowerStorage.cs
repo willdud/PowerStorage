@@ -1,10 +1,9 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using CitiesHarmony.API;
-using ColossalFramework;
 using ColossalFramework.UI;
 using ICities;
+using PowerStorage.Supporting;
 using UnityEngine;
 
 namespace PowerStorage
@@ -200,7 +199,6 @@ namespace PowerStorage
         public void OnLoadData()
         {
             LoadSettings();
-            AddColliderToBuildings();
         }
 
         public void OnSaveData()
@@ -210,64 +208,13 @@ namespace PowerStorage
 
         public void OnEnabled()
         {
-            HarmonyHelper.DoOnHarmonyReady(ElectricityManagerPatcher.DoPatching);
+            HarmonyHelper.DoOnHarmonyReady(Patcher.DoPatching);
         }
         
         public void OnDisabled() 
         {
             if (HarmonyHelper.IsHarmonyInstalled) 
-                ElectricityManagerPatcher.UnPatchAll();
-        }
-
-        public static BuildingAndIndex RegisterBuilding(ushort index, Building building)
-        {
-            var networkGameObject = new GameObject("PS-" + building.Info.name, typeof(SphereCollider), typeof(CollisionList));
-            var sphereCollider = networkGameObject.GetComponent<SphereCollider>();
-            sphereCollider.enabled = true;
-            sphereCollider.isTrigger = true;
-            sphereCollider.transform.position = building.m_position;
-            sphereCollider.radius = building.Info.m_buildingAI.ElectricityGridRadius() + (19.125f * 2); // 19.125f comes from logic in ElectricityManager
-            sphereCollider.gameObject.AddComponent<Rigidbody>();
-            var rigid = sphereCollider.gameObject.GetComponent<Rigidbody>();
-            if (rigid != null)
-                rigid.isKinematic = true;
-            
-            networkGameObject.SetActive(true);
-
-            var item = new BuildingAndIndex(index, building, networkGameObject);
-
-            var existingMatch = GridsBuildingsRollup.MasterBuildingList.FirstOrDefault(p => p.Index == index);
-            if (existingMatch != null)
-            {
-                PowerStorageLogger.Log($"Found, about to destroy {item.Building.Info.name}.", PowerStorageMessageType.Loading);
-                GridsBuildingsRollup.MasterBuildingList.Remove(existingMatch);
-                UnityEngine.Object.Destroy(existingMatch.GridGameObject);
-            }
-            
-            GridsBuildingsRollup.MasterBuildingList.Add(item);
-
-            PowerStorageLogger.Log($"building: {building.m_infoIndex}, {building.Info.name}, {building.m_position} | SphereCollider e: {sphereCollider.enabled}, p: {sphereCollider.transform.position} | {sphereCollider.transform.localPosition}", PowerStorageMessageType.Loading);
-
-            return item;
-        }
-        
-        public static void AddColliderToBuildings()
-        {
-            var watch = PowerStorageProfiler.Start("Add Collider To Buildings");
-            var buffer = Singleton<BuildingManager>.instance.m_buildings.m_buffer;
-            var buildings = buffer.Where(b => GridsBuildingsRollup.IncludedTypes.Any(it => it.IsInstanceOfType(b.Info.m_buildingAI))).ToList();
-            PowerStorageLogger.Log($"Add Collider To Buildings ({buildings.Count})", PowerStorageMessageType.Loading);
-
-            foreach (var building in buildings)
-            {
-                if (building.m_infoIndex == 0 && building.m_position == default)
-                    continue;
-                
-                var index = (ushort) Array.IndexOf(buffer, building);
-                if(!GridsBuildingsRollup.MasterBuildingList.Any(mbl => mbl.Index == index))
-                    RegisterBuilding(index, building);
-            }
-            PowerStorageProfiler.Stop("Add Collider To Buildings", watch);
+                Patcher.UnPatchAll();
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace PowerStorage
+﻿namespace PowerStorage.Supporting
 {
     public static class NumberExtensions
     {

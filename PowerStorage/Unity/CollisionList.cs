@@ -1,12 +1,12 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-namespace PowerStorage
+namespace PowerStorage.Unity
 {
     public class CollisionList : MonoBehaviour 
     {
  
-        public List <GameObject> CurrentCollisions = new List <GameObject>();
+        public List <GameObject> CurrentCollisions = new List <GameObject>(byte.MaxValue);
 
         private void OnTriggerEnter(Collider col) 
         {

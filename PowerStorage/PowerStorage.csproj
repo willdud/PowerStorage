@@ -81,19 +81,20 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BuildingAndIndex.cs" />
-    <Compile Include="BuildingElectricityGroup.cs" />
-    <Compile Include="CollisionList.cs" />
-    <Compile Include="ElectricityManagerPatcher.cs" />
-    <Compile Include="PowerStorageAi.cs" />
-    <Compile Include="GridMemberLastTickStats.cs" />
+    <Compile Include="Model\BuildingAndIndex.cs" />
+    <Compile Include="Model\BuildingElectricityGroup.cs" />
+    <Compile Include="Unity\CollisionAdder.cs" />
+    <Compile Include="Unity\CollisionList.cs" />
+    <Compile Include="Patcher.cs" />
+    <Compile Include="Unity\PowerStorageAi.cs" />
+    <Compile Include="Model\GridMemberLastTickStats.cs" />
     <Compile Include="GridSerializer.cs" />
-    <Compile Include="NumberExtensions.cs" />
+    <Compile Include="Supporting\NumberExtensions.cs" />
     <Compile Include="PowerStorage.cs" />
-    <Compile Include="PowerStorageProfiler.cs" />
-    <Compile Include="PowerStorageLogger.cs" />
-    <Compile Include="PowerStorageSettings.cs" />
-    <Compile Include="PowerStorageUI.cs" />
+    <Compile Include="Supporting\PowerStorageProfiler.cs" />
+    <Compile Include="Supporting\PowerStorageLogger.cs" />
+    <Compile Include="Supporting\PowerStorageSettings.cs" />
+    <Compile Include="Unity\PowerStorageUi.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="GridsBuildingsRollup.cs" />
   </ItemGroup>

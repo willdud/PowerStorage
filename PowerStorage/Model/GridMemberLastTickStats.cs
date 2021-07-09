@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PowerStorage
+namespace PowerStorage.Model
 {
     [Serializable]
     public class GridMemberLastTickStats
@@ -15,6 +15,7 @@ namespace PowerStorage
         public bool IsActive => ChargeProvidedKw > 0 || ChargeTakenKw > 0;
         public bool IsFull => CurrentChargeKw >= CapacityKw;
 
+        public string NeworkName { get; set; }
         public int ChargeTakenKw { get; set; }
         public int LossKw => (int)(ChargeTakenKw * PowerStorage.LossRatio);
         public int ChargeProvidedKw { get; set; }

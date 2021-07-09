@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace PowerStorage
+namespace PowerStorage.Model
 { 
     public class BuildingElectricityGroup
     {
@@ -10,7 +10,7 @@ namespace PowerStorage
         public BuildingElectricityGroup()
         {
             CodeName =  $"{CodeWords[Rnd.Next(0, CodeWords.Length)]}-{CodeWords[Rnd.Next(0, CodeWords.Length)]}";
-            BuildingsList = new List<BuildingAndIndex>();
+            BuildingsList = new List<BuildingAndIndex>(short.MaxValue);
         }
 
         public string CodeName;

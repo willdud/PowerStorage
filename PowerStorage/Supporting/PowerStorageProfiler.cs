@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using Debug = UnityEngine.Debug;
 
-namespace PowerStorage
+namespace PowerStorage.Supporting
 {
     public class PowerStorageProfiler
     {

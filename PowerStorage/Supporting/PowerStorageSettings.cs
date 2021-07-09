@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace PowerStorage
+namespace PowerStorage.Supporting
 {
     [Serializable]
     public class PowerStorageSettings

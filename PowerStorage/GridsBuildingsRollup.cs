@@ -2,15 +2,23 @@
 using System.Collections.Generic;
 using System.Linq;
 using ColossalFramework;
+using ColossalFramework.Threading;
 using ICities;
+using PowerStorage.Model;
+using PowerStorage.Supporting;
+using PowerStorage.Unity;
 using UnityEngine;
 
 namespace PowerStorage
 {
     public class GridsBuildingsRollup : ThreadingExtensionBase
     {
-        private static int _buildingUpdatesLastTick = 0;
-        private static int _buildingUpdates = 0;
+        public static bool Enabled = false;
+        public static bool CollidersAdded = false;
+        
+        private static GameObject _collisionAdderObj;
+        private static int _buildingUpdatesLastTick;
+        private static int _buildingUpdates;
         public static List<BuildingAndIndex> MasterBuildingList { get; set; }
         public static List<BuildingElectricityGroup> BuildingsGroupedToNetworks { get; set; }
 
@@ -48,7 +56,6 @@ namespace PowerStorage
             PowerStorageLogger.Log($"{kw}KW removed from {buildingGroup.CodeName} with {buildingGroup.BuildingsList.Count} members", PowerStorageMessageType.Grid);
         }
         
-
         public override void OnBeforeSimulationFrame()
         {
             base.OnBeforeSimulationFrame();
@@ -63,18 +70,33 @@ namespace PowerStorage
             {
                 HandleSimulationLoop(bg);
             }
-
-            //TODO: Add back if too slow
-            //if (_buildingUpdates == _buildingUpdatesLastTick)
-                //return;
-
-            _buildingUpdatesLastTick = _buildingUpdates;
             
-            var watch = PowerStorageProfiler.Start("Whole network process");
-            var unvisitedPoints = MasterBuildingList.ToList();
-            MapNetworks(unvisitedPoints, out var networks);
-            MergeNewNetworksWithMaster(networks);
-            PowerStorageProfiler.Stop("Whole network process", watch);
+            if (_buildingUpdates == _buildingUpdatesLastTick)
+                return;
+            
+            if (Enabled && !CollidersAdded)
+            {
+                _collisionAdderObj = new GameObject { name = "PowerStorageCollisionAdderObj" };
+                var adder = _collisionAdderObj.AddComponent<CollisionAdder>();
+                adder.BeginAdding();
+            }
+
+            if (Enabled && CollidersAdded)
+            {
+                _buildingUpdatesLastTick = _buildingUpdates; // only update if we are correcting the networks
+
+                var watch = PowerStorageProfiler.Start("Whole network process");
+                var unvisitedPoints = MasterBuildingList.ToList();
+
+                var task = new Task<bool>(() =>
+                {
+                    MapNetworks(unvisitedPoints, out var networks);
+                    MergeNewNetworksWithMaster(networks);
+                    PowerStorageProfiler.Stop("Whole network process", watch);
+                }).Run();
+
+                PowerStorageLogger.Log($"Task {task.result}", PowerStorageMessageType.Simulation);
+            }
         }
 
         private static void HandleSimulationLoop(BuildingElectricityGroup beg)
@@ -105,7 +127,7 @@ namespace PowerStorage
             PowerStorageLogger.Log($"Merging networks ({BuildingsGroupedToNetworks.Count})", PowerStorageMessageType.NetworkMerging);
             var watch = PowerStorageProfiler.Start("MergeNetworksWithMaster");
             var now = Singleton<SimulationManager>.instance.m_currentGameTime;
-            var matchedMasterNetworks = new List<BuildingElectricityGroup>();
+            var matchedMasterNetworks = new List<BuildingElectricityGroup>(ushort.MaxValue);
             foreach (var network in newNetworks)
             {
                 BuildingElectricityGroup bestMatch = null;
@@ -155,7 +177,7 @@ namespace PowerStorage
         private static void MapNetworks(List<BuildingAndIndex> unmappedPoints, out List<List<BuildingAndIndex>> networks) 
         {
             var watch = PowerStorageProfiler.Start("MapNetworks");
-            networks = new List<List<BuildingAndIndex>>();
+            networks = new List<List<BuildingAndIndex>>(byte.MaxValue);
             var unmappedDict = unmappedPoints.ToDictionary(k => k.GridGameObject, v => v);
 
             while(unmappedDict.Any())
@@ -183,7 +205,7 @@ namespace PowerStorage
             var watch = PowerStorageProfiler.Start("JoinNetworksByNodes");
             
             var nodes = Singleton<NetManager>.instance.m_nodes;
-            var powerPoleNetworks = new List<List<ushort>>();
+            var powerPoleNetworks = new List<List<ushort>>(byte.MaxValue);
             
             foreach (var network in networks)
             foreach (var buildingPair in network)
@@ -196,7 +218,7 @@ namespace PowerStorage
                 PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}", PowerStorageMessageType.NetworkMapping);
                 
                 var watch2 = PowerStorageProfiler.Start("CollectBuildingIdsOnNetwork");
-                var nodesExplored = CollectBuildingsOnNetwork(node, new List<ushort>());
+                var nodesExplored = CollectBuildingsOnNetwork(node, new List<ushort>(byte.MaxValue));
                 PowerStorageProfiler.Stop("CollectBuildingIdsOnNetwork", watch2);
 
                 powerPoleNetworks.Add(nodesExplored);
@@ -206,8 +228,8 @@ namespace PowerStorage
             
             foreach (var powerPoleNetwork in powerPoleNetworks)
             {
-                var networksToRemove = new List<int>();
-                var newMegaNetwork = new List<BuildingAndIndex>();
+                var networksToRemove = new List<int>(byte.MaxValue);
+                var newMegaNetwork = new List<BuildingAndIndex>(ushort.MaxValue);
 
                 for (var i = 0; i < networks.Count; i++)
                 {
@@ -238,10 +260,10 @@ namespace PowerStorage
         /// Follow the lines of the pole 'node' (recursively) to collect the whole network that `node` is a part of.
         /// </summary>
         private static List<ushort> CollectBuildingsOnNetwork(NetNode node, List<ushort> visitedSegments)
-        {
+        { stack overflow here
             var segments = Singleton<NetManager>.instance.m_segments.m_buffer;
             var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
-            var connectedNodesBuildings = new List<ushort> { node.m_building };
+            var connectedNodesBuildings = new List<ushort>(byte.MaxValue) { node.m_building };
             
             void Get(ushort segment)
             {
@@ -275,7 +297,7 @@ namespace PowerStorage
         /// </summary>
         private static List<BuildingAndIndex> MapNetwork(BuildingAndIndex point, ref Dictionary<GameObject, BuildingAndIndex> unmappedDict)
         {
-            var network = new List<BuildingAndIndex> { point };
+            var network = new List<BuildingAndIndex>(short.MaxValue) { point };
             if(unmappedDict.ContainsKey(point.GridGameObject))
                 unmappedDict.Remove(point.GridGameObject);
 
@@ -283,21 +305,27 @@ namespace PowerStorage
             inRange.Enqueue(point);
             do
             {
-                var matches = new List<BuildingAndIndex>();
-                var nearPoint = inRange.Dequeue().GridGameObject.GetComponent<CollisionList>().CurrentCollisions;
-                foreach (var gameObject in nearPoint)
+                List<GameObject> nearPoints = null;
+                Dispatcher.CreateSafeAction(() =>
+                {
+                    nearPoints = inRange.Dequeue().GridGameObject.GetComponent<CollisionList>().CurrentCollisions;
+                }).Invoke();
+
+                if (nearPoints == null)
+                    throw new Exception("Too optimistic");
+
+                foreach (var gameObject in nearPoints)
                 {
                     if (unmappedDict.ContainsKey(gameObject))
                     {
-                        matches.Add(unmappedDict[gameObject]);
+                        var match = unmappedDict[gameObject];
+                        if(network.Contains(match))
+                            continue;
+
+                        inRange.Enqueue(match);
+                        network.Add(match);
+                        unmappedDict.Remove(match.GridGameObject);
                     }
-                }
-                var newMatches = matches.Except(network).ToList();
-                foreach (var match in newMatches)
-                {
-                    inRange.Enqueue(match);
-                    network.Add(match);
-                    unmappedDict.Remove(match.GridGameObject);
                 }
             } while (inRange.Any());
 

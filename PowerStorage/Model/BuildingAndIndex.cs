@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace PowerStorage
+namespace PowerStorage.Model
 {
     // Often need both of these and using IndexOf on the buffer is slow, so lets just keep the info together.
     public class BuildingAndIndex

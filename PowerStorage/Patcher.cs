@@ -1,10 +1,12 @@
 ﻿using System.Linq;
 using HarmonyLib;
+using PowerStorage.Supporting;
+using PowerStorage.Unity;
 using UnityEngine;
 
 namespace PowerStorage
 {
-    public class ElectricityManagerPatcher
+    public class Patcher
     {
         private static bool _patched = false;
         private const string HarmonyId = "willdud.PowerStorage";
@@ -74,7 +76,7 @@ namespace PowerStorage
     {
         static void Prefix(ushort buildingID, ref Building data)
         {
-            PowerStorage.RegisterBuilding(buildingID, data);
+            CollisionAdder.RegisterBuilding(buildingID, data);
         }
     }
 
@@ -111,7 +113,7 @@ namespace PowerStorage
     {
         static void Prefix(ushort buildingID, ref Building data)
         {
-            PowerStorage.RegisterBuilding(buildingID, data);
+            CollisionAdder.RegisterBuilding(buildingID, data);
         }
     }
 }

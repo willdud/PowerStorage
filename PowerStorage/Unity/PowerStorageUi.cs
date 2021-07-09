@@ -4,14 +4,16 @@ using System.Linq;
 using ColossalFramework;
 using ColossalFramework.UI;
 using ICities;
+using PowerStorage.Model;
+using PowerStorage.Supporting;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace PowerStorage
+namespace PowerStorage.Unity
 { 
     public static class UiHolder
     {
-        public static UIComponent TsBar;
+        public static UIComponent ElecInfo;
         public static float ButtonX;
         public static float ButtonY;
         public static int? SelectedNetwork;
@@ -27,31 +29,24 @@ namespace PowerStorage
         public override void OnLevelLoaded(LoadMode mode)
 		{
             PowerStorageLogger.Log("Loading", PowerStorageMessageType.Loading);
-            if (_powerStorageUiObj == null)
-            {
-                if (mode == LoadMode.NewGame || mode == LoadMode.LoadGame)
-                {
-                    PowerStorageLogger.Log("Add UI", PowerStorageMessageType.Ui);
-                    _powerStorageUiObj = new GameObject();
-                    _powerStorageUiObj.AddComponent<Ui>();
-                    _powerStorageUiObj.name = "PowerStorageUiObj";
-                }
-            }
+            if (_powerStorageUiObj != null) 
+                return;
 
+            if (mode != LoadMode.NewGame && mode != LoadMode.LoadGame) 
+                return;
+            
             var view = UIView.GetAView();
             UiHolder.View = view;
-            var c = UIView.Find("TSBar");;
-            UiHolder.TsBar = c;
-            PowerStorageLogger.Log($"TS: {c?.name}", PowerStorageMessageType.Ui);
 
-            var pos = c.absolutePosition;
-            UiHolder.ButtonX = (pos.x + c.width) * view.inputScale - 2;
-            UiHolder.ButtonY = (pos.y + 10) * view.inputScale;
+            PowerStorageLogger.Log("Add UI", PowerStorageMessageType.Ui);
+            _powerStorageUiObj = new GameObject();
+            _powerStorageUiObj.AddComponent<Ui>();
+            _powerStorageUiObj.name = "PowerStorageUiObj";
         }
 
 		public override void OnLevelUnloading()
         {
-            PowerStorageLogger.Log($"OnLevelUnloading", PowerStorageMessageType.Loading);
+            PowerStorageLogger.Log("OnLevelUnloading", PowerStorageMessageType.Loading);
             if (_powerStorageUiObj == null) 
                 return;
 
@@ -71,17 +66,39 @@ namespace PowerStorage
 
         private void SetupUi()
         {
+            var c = UIView.Find("(Library) ElectricityInfoViewPanel");
+
+            if (c == null || !c.isEnabled || !c.isVisible)
+                return;
+
             _uiSetup = true;
-            _button = UiHolder.TsBar.AddUIComponent<UIButton>();
-            _button.text = "PS";
-            _button.tooltip = "Power Storage";
+            UiHolder.ElecInfo = c;
+            PowerStorageLogger.Log($"Elec: {c.name}", PowerStorageMessageType.Ui);
+            var pos = UiHolder.ElecInfo.absolutePosition + new Vector3(UiHolder.ElecInfo.size.x + 5, 0, 0);
+            UiHolder.ButtonX = (pos.x + c.width) * UiHolder.View.inputScale - 2;
+            UiHolder.ButtonY = (pos.y + 10) * UiHolder.View.inputScale;
+
+            _button = UiHolder.ElecInfo.AddUIComponent<UIButton>();
+            _button.text = "Power Storage";
+            _button.normalBgSprite = "ButtonMenu";
+            _button.normalFgSprite = "ThumbStatistics";
+            _button.hoveredTextColor = new Color32(7, 132, 255, 255);
+            _button.pressedTextColor = new Color32(30, 30, 44, 255);
+            _button.disabledTextColor = new Color32(7, 7, 7, 255);
             _button.autoSize = true;
+            _button.absolutePosition = pos;
             _button.eventClick += ButtonClick;
         }
 
         private void ButtonClick(UIComponent sender, UIMouseEventParameter e)
         {
-            PowerStorageLogger.Log("Button clicked", PowerStorageMessageType.Ui);
+            if (_showingWindow)
+            {
+                _showingFacilities = false;
+                _showingColliders = false;
+                UiHolder.SelectedBuilding = null;
+                UiHolder.SelectedNetwork = null;
+            }
             _showingWindow = !_showingWindow;
         }
 
@@ -94,13 +111,21 @@ namespace PowerStorage
                     PowerStorageLogger.Log("Setting up UI", PowerStorageMessageType.Ui);
                     SetupUi();
                 }
-
-                if (_showingWindow)
+                else
                 {
-                    _windowRect = GUILayout.Window(314, _windowRect, ShowPowerStorageWindow, "Power Storage - Grid Stats");
-                    if (_windowRect.x < -800 || _windowRect.y < -300 || _windowRect.x >= Screen.width || _windowRect.y >= Screen.height)
+                    PowerStorageLogger.Log($"UI ElecInfo: e:{UiHolder.ElecInfo.isEnabled} v:{UiHolder.ElecInfo.isVisible}", PowerStorageMessageType.Ui);
+                    if (UiHolder.ElecInfo != null && UiHolder.ElecInfo.isVisible)
+                        _button.Show();
+                    else
+                        _button.Hide();
+
+                    if (_showingWindow)
                     {
-                        _windowRect.position = new Vector2(Screen.width - 1200, Screen.height - 650);
+                        _windowRect = GUILayout.Window(315, _windowRect, ShowPowerStorageWindow, "Power Storage - Grid Stats");
+                        if (_windowRect.x < -800 || _windowRect.y < -300 || _windowRect.x >= Screen.width || _windowRect.y >= Screen.height)
+                        {
+                            _windowRect.position = new Vector2(Screen.width - 1200, Screen.height - 650);
+                        }
                     }
                 }
             }
@@ -108,6 +133,18 @@ namespace PowerStorage
 
         void ShowPowerStorageWindow(int windowId)
         {
+            if (!GridsBuildingsRollup.Enabled)
+            {
+                if (GUILayout.Button(GridsBuildingsRollup.Enabled ? "On" : "Off"))
+                {
+                    GridsBuildingsRollup.Enabled = !GridsBuildingsRollup.Enabled;
+                }
+            }
+            else
+            {
+                GUILayout.Label($"{CollisionAdder.Progress}/{CollisionAdder.Total}");
+            }
+
             if (_showingFacilities)
             {
                 RenderFacilitiesScreen();
@@ -338,6 +375,7 @@ namespace PowerStorage
 
                     GUILayout.BeginHorizontal();
                     GUILayout.Label("Id: " + buildingIndex);
+                    GUILayout.Label("Network Name: " + member.NeworkName);
                     GUILayout.Label("Type: " + member.BuildingPair.Building.Info.name);   
                     if (GUILayout.Button("View"))
                     {
@@ -364,7 +402,6 @@ namespace PowerStorage
                     GUILayout.Label("Currently Providing: " + member.ChargeProvidedKw + "KW");
                     GUILayout.Label("Currently Drawing: " + member.ChargeTakenKw + "KW - Loss: " + member.LossKw + "KW");
                     GUILayout.Space(22f);
-
                 }
             }
 
