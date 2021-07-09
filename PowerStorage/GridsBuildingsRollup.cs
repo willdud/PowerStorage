@@ -218,7 +218,8 @@ namespace PowerStorage
                 PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}", PowerStorageMessageType.NetworkMapping);
                 
                 var watch2 = PowerStorageProfiler.Start("CollectBuildingIdsOnNetwork");
-                var nodesExplored = CollectBuildingsOnNetwork(node, new List<ushort>(byte.MaxValue));
+                var visitedBuildings = new List<ushort>(ushort.MaxValue);
+                var nodesExplored = CollectBuildingsOnNetwork(node, ref visitedBuildings);
                 PowerStorageProfiler.Stop("CollectBuildingIdsOnNetwork", watch2);
 
                 powerPoleNetworks.Add(nodesExplored);
@@ -253,42 +254,57 @@ namespace PowerStorage
             PowerStorageProfiler.Stop("JoinNetworksByNodes", watch);
             return networks;
         }
-        
+
+        private static int GlobalIndex;
 
         /// <summary>
         /// Each power pole has a building and a network node, each power pole is connected by segments (lines).
         /// Follow the lines of the pole 'node' (recursively) to collect the whole network that `node` is a part of.
         /// </summary>
-        private static List<ushort> CollectBuildingsOnNetwork(NetNode node, List<ushort> visitedSegments)
-        { stack overflow here
-            var segments = Singleton<NetManager>.instance.m_segments.m_buffer;
-            var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
-            var connectedNodesBuildings = new List<ushort>(byte.MaxValue) { node.m_building };
-            
-            void Get(ushort segment)
+        private static List<ushort> CollectBuildingsOnNetwork(NetNode node, ref List<ushort> visitedBuildings)
+        {
+            GlobalIndex++;
+
+            PowerStorageLogger.Log($"{GlobalIndex}: NodeBuilding: {node.m_building}", PowerStorageMessageType.Saving);
+            if (!visitedBuildings.Contains(node.m_building))
             {
-                if (segment <= 0 || visitedSegments.Contains(segment)) return;
-
-                visitedSegments.Add(segment);
-                var s = segments[segment].m_startNode;
-                var e = segments[segment].m_endNode;
-                var startNode = nodes[s];
-                var endNode = nodes[e];
-                connectedNodesBuildings.AddRange(CollectBuildingsOnNetwork(startNode, visitedSegments));
-                connectedNodesBuildings.AddRange(CollectBuildingsOnNetwork(endNode, visitedSegments));
+                visitedBuildings.Add(node.m_building);
+                GetEdges(node.m_segment0, ref visitedBuildings);
+                GetEdges(node.m_segment1, ref visitedBuildings);
+                GetEdges(node.m_segment2, ref visitedBuildings);
+                GetEdges(node.m_segment3, ref visitedBuildings);
+                GetEdges(node.m_segment4, ref visitedBuildings);
+                GetEdges(node.m_segment5, ref visitedBuildings);
+                GetEdges(node.m_segment6, ref visitedBuildings);
+                GetEdges(node.m_segment7, ref visitedBuildings);
             }
-
-            Get(node.m_segment0);
-            Get(node.m_segment1);
-            Get(node.m_segment2);
-            Get(node.m_segment3);
-            Get(node.m_segment4);
-            Get(node.m_segment5);
-            Get(node.m_segment6);
-            Get(node.m_segment7);
+            else
+            {
+                PowerStorageLogger.Log($"{GlobalIndex}: Skip. Currently have: {visitedBuildings.Count}", PowerStorageMessageType.Saving);
+            }
             
-            return connectedNodesBuildings;
+            return visitedBuildings;
         }
+
+        private static void GetEdges(ushort segmentIndex, ref List<ushort> visitedBuildings)
+        {
+            if (segmentIndex <= 0) 
+                return;
+
+            var segment = Singleton<NetManager>.instance.m_segments.m_buffer[segmentIndex];
+            var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
+
+            PowerStorageLogger.Log($"{GlobalIndex}: Segment: {segment}", PowerStorageMessageType.Saving);
+            
+            var s = segment.m_startNode;
+            var startNode = nodes[s];
+            CollectBuildingsOnNetwork(startNode, ref visitedBuildings);
+
+            var e = segment.m_endNode;
+            var endNode = nodes[e];
+            CollectBuildingsOnNetwork(endNode, ref visitedBuildings);
+        }
+
 
         /// <summary>
         /// From a single building collect its neighbours, for each neighbour collect its neighbours.

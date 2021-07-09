@@ -46,7 +46,7 @@ namespace PowerStorage.Supporting
         Loading = 64,
         Simulation = 128,
         Misc = Ui | Saving | Loading | Simulation,
-
+        
         All = Grid | Network | Misc,
     }
 }
