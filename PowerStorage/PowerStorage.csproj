@@ -70,6 +70,9 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="Triangle">
+      <HintPath>DllDump\Triangle.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>W:\SteamLib3\steamapps\common\Cities_Skylines\Cities_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
@@ -81,8 +84,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Geometry\Delaunator.cs" />
     <Compile Include="Model\BuildingAndIndex.cs" />
     <Compile Include="Model\BuildingElectricityGroup.cs" />
+    <Compile Include="Supporting\EnumerableExtensions.cs" />
+    <Compile Include="Unity\GridMesh.cs" />
+    <Compile Include="Unity\GridMesher.cs" />
     <Compile Include="Unity\CollisionAdder.cs" />
     <Compile Include="Unity\CollisionList.cs" />
     <Compile Include="Patcher.cs" />

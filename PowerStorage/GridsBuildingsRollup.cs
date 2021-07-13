@@ -17,6 +17,7 @@ namespace PowerStorage
         public static bool CollidersAdded = false;
         
         private static GameObject _collisionAdderObj;
+        private static GameObject _gridMesher;
         private static int _buildingUpdatesLastTick;
         private static int _buildingUpdates;
         public static List<BuildingAndIndex> MasterBuildingList { get; set; }
@@ -79,6 +80,11 @@ namespace PowerStorage
                 _collisionAdderObj = new GameObject { name = "PowerStorageCollisionAdderObj" };
                 var adder = _collisionAdderObj.AddComponent<CollisionAdder>();
                 adder.BeginAdding();
+
+                _gridMesher = new GameObject { name = "PowerStorageGridMesherObj" };
+                var mesher = _gridMesher.AddComponent<GridMesher>();
+                _gridMesher.SetActive(true);
+                mesher.BeginAdding();
             }
 
             if (Enabled && CollidersAdded)
