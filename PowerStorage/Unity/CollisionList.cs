@@ -3,6 +3,8 @@ using UnityEngine;
 
 namespace PowerStorage.Unity
 {
+    
+    [RequireComponent(typeof(Rigidbody))]
     public class CollisionList : MonoBehaviour 
     {
  

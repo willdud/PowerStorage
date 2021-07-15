@@ -13,21 +13,23 @@ namespace PowerStorage
 {
     public class GridsBuildingsRollup : ThreadingExtensionBase
     {
-        public static bool Enabled = false;
-        public static bool CollidersAdded = false;
+        public static bool Enabled;
+        public static bool GridMeshed;
+        public static bool CollidersAdded;
+        public static bool Init;
         
         private static GameObject _collisionAdderObj;
         private static GameObject _gridMesher;
         private static int _buildingUpdatesLastTick;
         private static int _buildingUpdates;
-        public static List<BuildingAndIndex> MasterBuildingList { get; set; }
+        public static ThreadSafeListWithLock<BuildingAndIndex> MasterBuildingList { get; set; }
         public static List<BuildingElectricityGroup> BuildingsGroupedToNetworks { get; set; }
 
         public static BuildingElectricityGroup GetGroupContainingBuilding(BuildingAndIndex pair) => BuildingsGroupedToNetworks.FirstOrDefault(bg => bg.BuildingsList.Any(b => b.Building.m_position == pair.Building.m_position));
 
         static GridsBuildingsRollup()
         {
-            MasterBuildingList = new List<BuildingAndIndex>(ushort.MaxValue);
+            MasterBuildingList = new ThreadSafeListWithLock<BuildingAndIndex>();
             BuildingsGroupedToNetworks = new List<BuildingElectricityGroup>(ushort.MaxValue);
         }
 
@@ -61,7 +63,7 @@ namespace PowerStorage
         {
             base.OnBeforeSimulationFrame();
             var frameLoopedAt256 = (int) Singleton<SimulationManager>.instance.m_currentFrameIndex & (int)byte.MaxValue;
-            var basicallyHalf = frameLoopedAt256 * 128 >> 8; // Logic stolen from DistrictManager, every 512 frames, will come through here twice as each number 
+            var basicallyHalf = frameLoopedAt256 * 128 >> 8; // Logic stolen from DistrictManager for breaking up the load over frames 
             if (basicallyHalf != 0 || frameLoopedAt256 % 2 == 0) 
                 return;
             
@@ -75,19 +77,23 @@ namespace PowerStorage
             if (_buildingUpdates == _buildingUpdatesLastTick)
                 return;
             
-            if (Enabled && !CollidersAdded)
+            if (Enabled && !Init && !CollidersAdded && !GridMeshed)
             {
-                _collisionAdderObj = new GameObject { name = "PowerStorageCollisionAdderObj" };
-                var adder = _collisionAdderObj.AddComponent<CollisionAdder>();
-                adder.BeginAdding();
-
+                Init = true;
                 _gridMesher = new GameObject { name = "PowerStorageGridMesherObj" };
                 var mesher = _gridMesher.AddComponent<GridMesher>();
                 _gridMesher.SetActive(true);
                 mesher.BeginAdding();
             }
 
-            if (Enabled && CollidersAdded)
+            if (Enabled && Init && !CollidersAdded && GridMeshed)
+            {
+                _collisionAdderObj = new GameObject { name = "PowerStorageCollisionAdderObj" };
+                var adder = _collisionAdderObj.AddComponent<CollisionAdder>();
+                adder.BeginAdding();
+            }
+
+            if (Enabled && Init && CollidersAdded && GridMeshed)
             {
                 _buildingUpdatesLastTick = _buildingUpdates; // only update if we are correcting the networks
 
@@ -180,10 +186,39 @@ namespace PowerStorage
         /// <summary>
         /// From a list of buildings (`unmappedPoints`), group them by electricity conductivity.
         /// </summary>
-        private static void MapNetworks(List<BuildingAndIndex> unmappedPoints, out List<List<BuildingAndIndex>> networks) 
+        private static void MapNetworks(List<BuildingAndIndex> unmappedPoints, out List<List<BuildingAndIndex>> networks)
         {
-            var watch = PowerStorageProfiler.Start("MapNetworks");
             networks = new List<List<BuildingAndIndex>>(byte.MaxValue);
+            if (!Enabled || !Init || !CollidersAdded || !GridMeshed)
+            {
+                PowerStorageLogger.Log($"Not initialised {Enabled} {Init} {CollidersAdded} {GridMeshed}", PowerStorageMessageType.NetworkMapping);
+                return;
+            }
+            
+            PowerStorageLogger.Log($"Mesher Children: {_gridMesher.transform.childCount}", PowerStorageMessageType.NetworkMapping);
+            foreach (var childObj in _gridMesher.GetAllChildren())
+            {
+                var childLists = childObj.GetComponent<CollisionList>();
+                var networkMembers = childLists.CurrentCollisions.ToList();
+                PowerStorageLogger.Log($"Mesher Child Children: {childObj.transform.childCount}", PowerStorageMessageType.NetworkMapping);
+
+                foreach (var doubleChildObj in childObj.GetAllChildren())
+                {
+                    var doubleChildLists = doubleChildObj.GetComponent<CollisionList>();
+                    PowerStorageLogger.Log($"Mesher Double Child Children: {doubleChildObj.transform.childCount}", PowerStorageMessageType.NetworkMapping);
+                    networkMembers.AddRange(doubleChildLists.CurrentCollisions);
+                }
+                networks.Add(MasterBuildingList.Where(p => networkMembers.Contains(p.GridGameObject)).ToList());
+            }
+            
+
+            return;
+
+
+
+
+
+            var watch = PowerStorageProfiler.Start("MapNetworks");
             var unmappedDict = unmappedPoints.ToDictionary(k => k.GridGameObject, v => v);
 
             while(unmappedDict.Any())
@@ -334,7 +369,10 @@ namespace PowerStorage
                 }).Invoke();
 
                 if (nearPoints == null)
-                    throw new Exception("Too optimistic");
+                {
+                    PowerStorageLogger.LogError("Mapping Gone Wrong", PowerStorageMessageType.NetworkMapping);
+                    return network;
+                }
 
                 foreach (var gameObject in nearPoints)
                 {

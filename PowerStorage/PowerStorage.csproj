@@ -88,6 +88,8 @@
     <Compile Include="Model\BuildingAndIndex.cs" />
     <Compile Include="Model\BuildingElectricityGroup.cs" />
     <Compile Include="Supporting\EnumerableExtensions.cs" />
+    <Compile Include="Supporting\GameObjectExtensions.cs" />
+    <Compile Include="Supporting\ThreadsafeListWithLock.cs" />
     <Compile Include="Unity\GridMesh.cs" />
     <Compile Include="Unity\GridMesher.cs" />
     <Compile Include="Unity\CollisionAdder.cs" />
