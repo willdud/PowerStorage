@@ -102,7 +102,7 @@ namespace PowerStorage
 
                 var task = new Task<bool>(() =>
                 {
-                    MapNetworks(unvisitedPoints, out var networks);
+                    var networks = MapNetworks();
                     MergeNewNetworksWithMaster(networks);
                     PowerStorageProfiler.Stop("Whole network process", watch);
                 }).Run();
@@ -186,13 +186,13 @@ namespace PowerStorage
         /// <summary>
         /// From a list of buildings (`unmappedPoints`), group them by electricity conductivity.
         /// </summary>
-        private static void MapNetworks(List<BuildingAndIndex> unmappedPoints, out List<List<BuildingAndIndex>> networks)
+        private static List<List<BuildingAndIndex>> MapNetworks()
         {
-            networks = new List<List<BuildingAndIndex>>(byte.MaxValue);
+            var networks = new List<List<BuildingAndIndex>>(byte.MaxValue);
             if (!Enabled || !Init || !CollidersAdded || !GridMeshed)
             {
                 PowerStorageLogger.Log($"Not initialised {Enabled} {Init} {CollidersAdded} {GridMeshed}", PowerStorageMessageType.NetworkMapping);
-                return;
+                return networks;
             }
             
             var watch = PowerStorageProfiler.Start("MapNetworks");
@@ -217,6 +217,8 @@ namespace PowerStorage
             networks = JoinNetworksByNodes(networks);
 
             PowerStorageProfiler.Stop("MapNetworks", watch);
+
+            return networks;
         }
 
         /// <summary>

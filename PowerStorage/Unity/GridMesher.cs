@@ -39,7 +39,8 @@ namespace PowerStorage.Unity
             
             var indexesUsed = new List<int>();
             var pointsForMeshes = new Dictionary<List<Vector2>, List<Vector2>>();
-            
+
+            var index = 0;
             for (float y = _min; y <= _max; y = y + 38.250f)
             for (float x = _min; x <= _max; x = x + 38.250f)
             {
@@ -61,61 +62,23 @@ namespace PowerStorage.Unity
                     thisMesh.Add(new Vector2(x, y));
                     pointsForMeshes.Add(thisMesh, perimeterPoints);
                 }
+
+                index++;
+                if(index % 250 == 0)
+                    yield return new WaitForFixedUpdate();
             }
             
-            yield return new WaitForFixedUpdate();
             PowerStorageLogger.Log($"Mesher, meshes: {pointsForMeshes.Count}.", PowerStorageMessageType.Saving);
 
             var iterator = 0;
             foreach (var pointsForMesh in pointsForMeshes)
             {
                 var subMeshes = new List<Mesh>();
-                var polygon = new Polygon();
-
+                
                 PowerStorageLogger.LogWarning($"Mesher, pre-triangulate points: {pointsForMesh.Key.Count}.", PowerStorageMessageType.Saving);
                 PowerStorageLogger.Log($"Mesher, pre-triangulate perimiter: {pointsForMesh.Value.Count}.", PowerStorageMessageType.Saving);
 
-                foreach (var vector2A in pointsForMesh.Value)
-                foreach (var vector2B in pointsForMesh.Value)
-                {
-                    if (vector2A == vector2B)
-                    {
-                        continue;
-                    }
-
-                    if (Math.Abs(vector2A.x - vector2B.x) < 1 && Math.Abs(vector2A.y - (vector2B.y + 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.y - vector2B.y) < 1 && Math.Abs(vector2A.x - (vector2B.x + 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.x - (vector2B.x + 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y + 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.x - (vector2B.x - 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y + 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.x - (vector2B.x - 38.250)) < 1 && Math.Abs(vector2A.y - vector2B.y) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.x - (vector2B.x - 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y - 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.x - vector2B.x) < 1 && Math.Abs(vector2A.y - (vector2B.y - 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                    else if (Math.Abs(vector2A.x - (vector2B.x + 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y - 38.250)) < 1)
-                    {
-                        polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
-                    }
-                }
+                var polygon = MapPerimeterOfPoly(pointsForMesh);
                 
                 yield return new WaitForFixedUpdate();
 
@@ -135,18 +98,18 @@ namespace PowerStorage.Unity
                 }
                 else
                 {
-                    try
+                    var tMesh = triangulator.Triangulate(polygon, new ConstraintOptions { Convex = false }) as Geometry.Mesh;
+                    FileProcessor.Write(tMesh, "C:\\temp\\poly"+iterator+".poly");
+                    
+                    var voronoi = new BoundedVoronoi(tMesh);
+                    PowerStorageLogger.Log($"Mesher, voronoi faces:{voronoi.Faces.Count} verts:{voronoi.Vertices.Count}", PowerStorageMessageType.Saving);
+                    foreach (var face in voronoi.Faces)
                     {
-                        var tMesh = triangulator.Triangulate(polygon, new ConstraintOptions { Convex = false }) as Geometry.Mesh;
-                        FileProcessor.Write(tMesh, "C:\\temp\\poly"+iterator+".poly");
-                        
-                        var voronoi = new BoundedVoronoi(tMesh);
-                        PowerStorageLogger.Log($"Mesher, voronoi faces:{voronoi.Faces.Count} verts:{voronoi.Vertices.Count}", PowerStorageMessageType.Saving);
-                        foreach (var face in voronoi.Faces)
-                        {
-                            if (face == null)
-                                continue;
+                        if (face == null)
+                            continue;
 
+                        try
+                        {
                             var facePoly = new Polygon();
                             foreach (var edge in face.EnumerateEdges())
                             {
@@ -171,7 +134,7 @@ namespace PowerStorage.Unity
 
                                 return vertIndexList;
                             }).ToArray();
-
+                        
                             var faceMesh = new Mesh();
                             faceMesh.SetVertices(faceVerts.ToList());
                             faceMesh.SetTriangles(faceTris.ToArray().Reverse().ToArray(), 0);
@@ -179,18 +142,18 @@ namespace PowerStorage.Unity
                             faceMesh.RecalculateBounds();
                             subMeshes.Add(faceMesh);
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        PowerStorageLogger.LogError("---Mesher Error---", PowerStorageMessageType.Saving);
-                        PowerStorageLogger.LogError(ex.Message, PowerStorageMessageType.Saving);
-                        PowerStorageLogger.LogError(ex.StackTrace, PowerStorageMessageType.Saving);
-                        continue;
+                        catch (Exception ex)
+                        {
+                            PowerStorageLogger.LogError("---Mesher Error---", PowerStorageMessageType.Saving);
+                            PowerStorageLogger.LogError(ex.Message, PowerStorageMessageType.Saving);
+                            PowerStorageLogger.LogError(ex.StackTrace, PowerStorageMessageType.Saving);
+                            continue;
+                        }
+
+                        yield return new WaitForFixedUpdate();
                     }
                 }
                 
-                yield return new WaitForFixedUpdate();
-
                 var gridMesh = new GameObject("PowerStorageGridMeshObj"+ ++iterator);
                 gridMesh.AddComponent<GridMesh>();
                 gridMesh.AddComponent<CollisionList>(); 
@@ -225,6 +188,54 @@ namespace PowerStorage.Unity
             GridsBuildingsRollup.GridMeshed = true;
 
             PowerStorageProfiler.Stop("Make Meshes", watch);
+        }
+
+        private static Polygon MapPerimeterOfPoly(KeyValuePair<List<Vector2>, List<Vector2>> pointsForMesh)
+        {
+            var polygon = new Polygon();
+            foreach (var vector2A in pointsForMesh.Value)
+            foreach (var vector2B in pointsForMesh.Value)
+            {
+                if (vector2A == vector2B)
+                {
+                    continue;
+                }
+
+                if (Math.Abs(vector2A.x - vector2B.x) < 1 && Math.Abs(vector2A.y - (vector2B.y + 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.y - vector2B.y) < 1 && Math.Abs(vector2A.x - (vector2B.x + 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.x - (vector2B.x + 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y + 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.x - (vector2B.x - 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y + 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.x - (vector2B.x - 38.250)) < 1 && Math.Abs(vector2A.y - vector2B.y) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.x - (vector2B.x - 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y - 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.x - vector2B.x) < 1 && Math.Abs(vector2A.y - (vector2B.y - 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+                else if (Math.Abs(vector2A.x - (vector2B.x + 38.250)) < 1 && Math.Abs(vector2A.y - (vector2B.y - 38.250)) < 1)
+                {
+                    polygon.Add(new Segment(new Vertex(vector2A.x, vector2A.y), new Vertex(vector2B.x, vector2B.y)), true);
+                }
+            }
+
+            return polygon;
         }
 
         private static bool IsConductive(ElectricityManager.Cell cell, float x, float y)

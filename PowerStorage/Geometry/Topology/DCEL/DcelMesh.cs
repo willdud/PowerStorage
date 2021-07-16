@@ -2,7 +2,9 @@
 // <copyright file="DcelMesh.cs">
 // Triangle.NET code by Christian Woltering, http://triangle.codeplex.com/
 // </copyright>
+// modification: ResolveBoundaryEdges - guarding against duplicate key.
 // -----------------------------------------------------------------------
+
 
 using System.Collections.Generic;
 using PowerStorage.Geometry.Geometry;
@@ -227,7 +229,8 @@ namespace PowerStorage.Geometry.Topology.DCEL
                     var twin = edge.twin = new HalfEdge(edge.next.origin, Face.Empty);
                     twin.twin = edge;
 
-                    map.Add(twin.origin.id, twin);
+                    if(!map.ContainsKey(twin.origin.id))
+                        map.Add(twin.origin.id, twin);
                 }
             }
 
@@ -235,6 +238,9 @@ namespace PowerStorage.Geometry.Topology.DCEL
 
             foreach (var edge in map.Values)
             {
+                if (!map.ContainsKey(edge.twin.origin.id))
+                    continue;
+
                 edge.id = j++;
                 edge.next = map[edge.twin.origin.id];
 
