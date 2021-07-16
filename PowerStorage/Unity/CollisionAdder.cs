@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using ColossalFramework;
-using ColossalFramework.Threading;
 using PowerStorage.Model;
 using PowerStorage.Supporting;
 using UnityEngine;

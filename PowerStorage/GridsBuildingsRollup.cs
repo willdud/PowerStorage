@@ -195,6 +195,7 @@ namespace PowerStorage
                 return;
             }
             
+            var watch = PowerStorageProfiler.Start("MapNetworks");
             PowerStorageLogger.Log($"Mesher Children: {_gridMesher.transform.childCount}", PowerStorageMessageType.NetworkMapping);
             foreach (var childObj in _gridMesher.GetAllChildren())
             {
@@ -211,29 +212,11 @@ namespace PowerStorage
                 networks.Add(MasterBuildingList.Where(p => networkMembers.Contains(p.GridGameObject)).ToList());
             }
             
-
-            return;
-
-
-
-
-
-            var watch = PowerStorageProfiler.Start("MapNetworks");
-            var unmappedDict = unmappedPoints.ToDictionary(k => k.GridGameObject, v => v);
-
-            while(unmappedDict.Any())
-            {
-                PowerStorageLogger.Log($"MapNetworks unmappedPoints({unmappedPoints.Count})", PowerStorageMessageType.NetworkMapping);
-                var point = unmappedPoints.First();
-                var network = MapNetwork(point, ref unmappedDict);
-                unmappedPoints = unmappedPoints.Except(network).ToList();
-                if(!network.All(b => b.Building.Info.m_buildingAI is PowerPoleAI))
-                    networks.Add(network);
-                PowerStorageProfiler.Lap("MapNetworks", watch);
-            }
-            PowerStorageProfiler.Stop("MapNetworks", watch);
-
+            PowerStorageProfiler.Lap("MapNetworks", watch);
+            
             networks = JoinNetworksByNodes(networks);
+
+            PowerStorageProfiler.Stop("MapNetworks", watch);
         }
 
         /// <summary>

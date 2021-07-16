@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using ColossalFramework;
 using HarmonyLib;
+using PowerStorage.Geometry.Geometry;
+using PowerStorage.Geometry.IO;
+using PowerStorage.Geometry.Meshing;
+using PowerStorage.Geometry.Voronoi;
 using PowerStorage.Supporting;
-using TriangleNet.Geometry;
-using TriangleNet.IO;
-using TriangleNet.Meshing;
-using TriangleNet.Voronoi;
 using UnityEngine;
 using Mesh = UnityEngine.Mesh;
 
@@ -137,7 +137,7 @@ namespace PowerStorage.Unity
                 {
                     try
                     {
-                        var tMesh = triangulator.Triangulate(polygon, new ConstraintOptions { Convex = false }) as TriangleNet.Mesh;
+                        var tMesh = triangulator.Triangulate(polygon, new ConstraintOptions { Convex = false }) as Geometry.Mesh;
                         FileProcessor.Write(tMesh, "C:\\temp\\poly"+iterator+".poly");
                         
                         var voronoi = new BoundedVoronoi(tMesh);

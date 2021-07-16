@@ -70,9 +70,6 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-    <Reference Include="Triangle">
-      <HintPath>DllDump\Triangle.dll</HintPath>
-    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>W:\SteamLib3\steamapps\common\Cities_Skylines\Cities_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
@@ -84,7 +81,84 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Geometry\Delaunator.cs" />
+    <Compile Include="Geometry\Behavior.cs" />
+    <Compile Include="Geometry\Configuration.cs" />
+    <Compile Include="Geometry\Enums.cs" />
+    <Compile Include="Geometry\Geometry\Contour.cs" />
+    <Compile Include="Geometry\Geometry\Edge.cs" />
+    <Compile Include="Geometry\Geometry\ExtensionMethods.cs" />
+    <Compile Include="Geometry\Geometry\IEdge.cs" />
+    <Compile Include="Geometry\Geometry\IPolygon.cs" />
+    <Compile Include="Geometry\Geometry\ISegment.cs" />
+    <Compile Include="Geometry\Geometry\ITriangle.cs" />
+    <Compile Include="Geometry\Geometry\Point.cs" />
+    <Compile Include="Geometry\Geometry\Polygon.cs" />
+    <Compile Include="Geometry\Geometry\Rectangle.cs" />
+    <Compile Include="Geometry\Geometry\RegionPointer.cs" />
+    <Compile Include="Geometry\Geometry\Segment.cs" />
+    <Compile Include="Geometry\Geometry\Vertex.cs" />
+    <Compile Include="Geometry\IO\DebugWriter.cs" />
+    <Compile Include="Geometry\IO\FileProcessor.cs" />
+    <Compile Include="Geometry\IO\IFileFormat.cs" />
+    <Compile Include="Geometry\IO\IMeshFormat.cs" />
+    <Compile Include="Geometry\IO\InputTriangle.cs" />
+    <Compile Include="Geometry\IO\IPolygonFormat.cs" />
+    <Compile Include="Geometry\IO\TriangleFormat.cs" />
+    <Compile Include="Geometry\IO\TriangleReader.cs" />
+    <Compile Include="Geometry\IO\TriangleWriter.cs" />
+    <Compile Include="Geometry\IPredicates.cs" />
+    <Compile Include="Geometry\Mesh.cs" />
+    <Compile Include="Geometry\Meshing\Algorithm\Dwyer.cs" />
+    <Compile Include="Geometry\Meshing\Algorithm\Incremental.cs" />
+    <Compile Include="Geometry\Meshing\Algorithm\SweepLine.cs" />
+    <Compile Include="Geometry\Meshing\ConstraintMesher.cs" />
+    <Compile Include="Geometry\Meshing\ConstraintOptions.cs" />
+    <Compile Include="Geometry\Meshing\Converter.cs" />
+    <Compile Include="Geometry\Meshing\Data\BadSubseg.cs" />
+    <Compile Include="Geometry\Meshing\Data\BadTriangle.cs" />
+    <Compile Include="Geometry\Meshing\Data\BadTriQueue.cs" />
+    <Compile Include="Geometry\Meshing\GenericMesher.cs" />
+    <Compile Include="Geometry\Meshing\IConstraintMesher.cs" />
+    <Compile Include="Geometry\Meshing\IMesh.cs" />
+    <Compile Include="Geometry\Meshing\IQualityMesher.cs" />
+    <Compile Include="Geometry\Meshing\Iterators\EdgeIterator.cs" />
+    <Compile Include="Geometry\Meshing\Iterators\RegionIterator.cs" />
+    <Compile Include="Geometry\Meshing\Iterators\VertexCirculator.cs" />
+    <Compile Include="Geometry\Meshing\ITriangulator.cs" />
+    <Compile Include="Geometry\Meshing\QualityMesher.cs" />
+    <Compile Include="Geometry\Meshing\QualityOptions.cs" />
+    <Compile Include="Geometry\MeshValidator.cs" />
+    <Compile Include="Geometry\NewLocation.cs" />
+    <Compile Include="Geometry\RobustPredicates.cs" />
+    <Compile Include="Geometry\Tools\AdjacencyMatrix.cs" />
+    <Compile Include="Geometry\Tools\CuthillMcKee.cs" />
+    <Compile Include="Geometry\Tools\Interpolation.cs" />
+    <Compile Include="Geometry\Tools\IntersectionHelper.cs" />
+    <Compile Include="Geometry\Tools\PolygonValidator.cs" />
+    <Compile Include="Geometry\Tools\QualityMeasure.cs" />
+    <Compile Include="Geometry\Tools\Statistic.cs" />
+    <Compile Include="Geometry\Tools\TriangleQuadTree.cs" />
+    <Compile Include="Geometry\Tools\VertexSorter.cs" />
+    <Compile Include="Geometry\Topology\DCEL\DcelMesh.cs" />
+    <Compile Include="Geometry\Topology\DCEL\Face.cs" />
+    <Compile Include="Geometry\Topology\DCEL\HalfEdge.cs" />
+    <Compile Include="Geometry\Topology\DCEL\Vertex.cs" />
+    <Compile Include="Geometry\Topology\Osub.cs" />
+    <Compile Include="Geometry\Topology\Otri.cs" />
+    <Compile Include="Geometry\Topology\SubSegment.cs" />
+    <Compile Include="Geometry\Topology\Triangle.cs" />
+    <Compile Include="Geometry\TriangleLocator.cs" />
+    <Compile Include="Geometry\TrianglePool.cs" />
+    <Compile Include="Geometry\TriangleSampler.cs" />
+    <Compile Include="Geometry\Voronoi\BoundedVoronoi.cs" />
+    <Compile Include="Geometry\Voronoi\DefaultVoronoiFactory.cs" />
+    <Compile Include="Geometry\Voronoi\IVoronoiFactory.cs" />
+    <Compile Include="Geometry\Voronoi\Legacy\BoundedVoronoiLegacy.cs" />
+    <Compile Include="Geometry\Voronoi\Legacy\IVoronoi.cs" />
+    <Compile Include="Geometry\Voronoi\Legacy\SimpleVoronoi.cs" />
+    <Compile Include="Geometry\Voronoi\Legacy\VoronoiRegion.cs" />
+    <Compile Include="Geometry\Voronoi\StandardVoronoi.cs" />
+    <Compile Include="Geometry\Voronoi\VoronoiBase.cs" />
     <Compile Include="Model\BuildingAndIndex.cs" />
     <Compile Include="Model\BuildingElectricityGroup.cs" />
     <Compile Include="Supporting\EnumerableExtensions.cs" />
