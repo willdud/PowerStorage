@@ -40,6 +40,8 @@ namespace PowerStorage.Unity
             var indexesUsed = new List<int>();
             var pointsForMeshes = new Dictionary<List<Vector2>, List<Vector2>>();
 
+            //TODO: capture holes and add to poly as contours
+
             var index = 0;
             for (float y = _min; y <= _max; y = y + 38.250f)
             for (float x = _min; x <= _max; x = x + 38.250f)

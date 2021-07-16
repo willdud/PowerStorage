@@ -93,13 +93,12 @@ namespace PowerStorage
                 adder.BeginAdding();
             }
 
+            //TODO: get this to follow the mesher and the reset and restart.
             if (Enabled && Init && CollidersAdded && GridMeshed)
             {
                 _buildingUpdatesLastTick = _buildingUpdates; // only update if we are correcting the networks
 
                 var watch = PowerStorageProfiler.Start("Whole network process");
-                var unvisitedPoints = MasterBuildingList.ToList();
-
                 var task = new Task<bool>(() =>
                 {
                     var networks = MapNetworks();
