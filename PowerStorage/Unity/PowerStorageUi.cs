@@ -142,6 +142,7 @@ namespace PowerStorage.Unity
             }
             else
             {
+                GUILayout.Label($"{(GridMesher.InProgress ? "Meshing..." : "On Hold")}");
                 GUILayout.Label($"{CollisionAdder.Progress}/{CollisionAdder.Total}");
             }
 

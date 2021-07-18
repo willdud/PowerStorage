@@ -16,6 +16,7 @@ namespace PowerStorage
         public static bool Chirp { get; set; } = true;
         public static bool DebugLog { get; set; } = false;
         public static bool Profile { get; set; } = false;
+        public static bool DebugRenders { get; set; } = false;
         public static PowerStorageMessageType ShownMessageTypes { get; set; } = PowerStorageMessageType.None;
 
         public string Name => "Power Storage";
@@ -81,6 +82,15 @@ namespace PowerStorage
                 Profile = isChecked;
             });
             
+            group.AddSpace(20);
+
+            group.AddCheckbox("Debug Rendering", DebugRenders, isChecked =>
+            {
+                DebugRenders = isChecked;
+            });
+
+            group.AddSpace(20);
+
             group.AddDropdown("Logging Type", Enum.GetNames(typeof(PowerStorageMessageType)), (int)ShownMessageTypes, (value) =>
             {
                 switch (value)
@@ -179,7 +189,8 @@ namespace PowerStorage
                     SafetyKwDischarge = SafetyKwDischarge,
                     Chirp = Chirp,
                     Debug = DebugLog,
-                    Profile = Profile
+                    Profile = Profile,
+                    DebugRenders = DebugRenders
                 };
                 File.WriteAllText(FullSavePath, JsonUtility.ToJson(psSettings));
             } 

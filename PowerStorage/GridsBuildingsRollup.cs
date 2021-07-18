@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using ColossalFramework;
-using ColossalFramework.Threading;
 using ICities;
 using PowerStorage.Model;
 using PowerStorage.Supporting;
@@ -13,13 +12,11 @@ namespace PowerStorage
 {
     public class GridsBuildingsRollup : ThreadingExtensionBase
     {
+        public static GameObject GridMesherObj;
+        public static GameObject CollisionAdderObj;
+
         public static bool Enabled;
-        public static bool GridMeshed;
-        public static bool CollidersAdded;
-        public static bool Init;
         
-        private static GameObject _collisionAdderObj;
-        private static GameObject _gridMesher;
         private static int _buildingUpdatesLastTick;
         private static int _buildingUpdates;
         public static ThreadSafeListWithLock<BuildingAndIndex> MasterBuildingList { get; set; }
@@ -77,36 +74,22 @@ namespace PowerStorage
             if (_buildingUpdates == _buildingUpdatesLastTick)
                 return;
             
-            if (Enabled && !Init && !CollidersAdded && !GridMeshed)
+            
+            if (Enabled && CollisionAdderObj == null)
             {
-                Init = true;
-                _gridMesher = new GameObject { name = "PowerStorageGridMesherObj" };
-                var mesher = _gridMesher.AddComponent<GridMesher>();
-                _gridMesher.SetActive(true);
-                mesher.BeginAdding();
-            }
-
-            if (Enabled && Init && !CollidersAdded && GridMeshed)
-            {
-                _collisionAdderObj = new GameObject { name = "PowerStorageCollisionAdderObj" };
-                var adder = _collisionAdderObj.AddComponent<CollisionAdder>();
+                CollisionAdderObj = new GameObject { name = "PowerStorageCollisionAdderObj" };
+                var adder = CollisionAdderObj.AddComponent<CollisionAdder>();
                 adder.BeginAdding();
             }
 
-            //TODO: get this to follow the mesher and the reset and restart.
-            if (Enabled && Init && CollidersAdded && GridMeshed)
+            if (Enabled && GridMesherObj == null && CollisionAdderObj != null)
             {
-                _buildingUpdatesLastTick = _buildingUpdates; // only update if we are correcting the networks
-
-                var watch = PowerStorageProfiler.Start("Whole network process");
-                var task = new Task<bool>(() =>
+                if (CollisionAdder.Done)
                 {
-                    var networks = MapNetworks();
-                    MergeNewNetworksWithMaster(networks);
-                    PowerStorageProfiler.Stop("Whole network process", watch);
-                }).Run();
-
-                PowerStorageLogger.Log($"Task {task.result}", PowerStorageMessageType.Simulation);
+                    GridMesherObj = new GameObject { name = "PowerStorageGridMesherObj" };
+                    var mesher = GridMesherObj.AddComponent<GridMesher>();
+                    mesher.BeginAdding();
+                }
             }
         }
 
@@ -131,251 +114,6 @@ namespace PowerStorage
         public static void UpdateGrid()
         {
             _buildingUpdates++;
-        }
-
-        private static void MergeNewNetworksWithMaster(List<List<BuildingAndIndex>> newNetworks)
-        {
-            PowerStorageLogger.Log($"Merging networks ({BuildingsGroupedToNetworks.Count})", PowerStorageMessageType.NetworkMerging);
-            var watch = PowerStorageProfiler.Start("MergeNetworksWithMaster");
-            var now = Singleton<SimulationManager>.instance.m_currentGameTime;
-            var matchedMasterNetworks = new List<BuildingElectricityGroup>(ushort.MaxValue);
-            foreach (var network in newNetworks)
-            {
-                BuildingElectricityGroup bestMatch = null;
-                foreach (var bg in BuildingsGroupedToNetworks)
-                {
-                    if (matchedMasterNetworks.Contains(bg))
-                        continue;
-
-                    var match = network.Any(b => bg.BuildingsList.Any(ib => b.GridGameObject == ib.GridGameObject));
-                    if (match)
-                    {
-                        matchedMasterNetworks.Add(bg);
-                        bestMatch = bg;
-                        break;
-                    }
-                }
-
-                if (bestMatch != null)
-                {
-                    PowerStorageLogger.Log($"Existing network updated - Cap: {bestMatch.LastCycleTotalCapacityKw}KW - Con: {bestMatch.LastCycleTotalConsumptionKw}KW", PowerStorageMessageType.NetworkMerging);
-                    bestMatch.BuildingsList = network;
-                    bestMatch.LastBuildingUpdate = now;
-                }
-                else
-                {
-                    PowerStorageLogger.Log("New Network Added", PowerStorageMessageType.NetworkMerging);
-                    BuildingsGroupedToNetworks.Add(new BuildingElectricityGroup
-                    {
-                        BuildingsList = network,
-                        LastBuildingUpdate = now
-                    });
-                }
-                PowerStorageProfiler.Lap("MergeNetworksWithMaster", watch);
-            }
-            for (var i = BuildingsGroupedToNetworks.Count - 1; i >= 0; i--)
-            {
-                if(BuildingsGroupedToNetworks[i].LastBuildingUpdate != now)
-                    BuildingsGroupedToNetworks.RemoveAt(i);
-            }
-            PowerStorageProfiler.Stop("MergeNetworksWithMaster", watch);
-            PowerStorageLogger.Log($"Done Merging networks ({BuildingsGroupedToNetworks.Count})", PowerStorageMessageType.NetworkMerging);
-        }
-        
-        /// <summary>
-        /// From a list of buildings (`unmappedPoints`), group them by electricity conductivity.
-        /// </summary>
-        private static List<List<BuildingAndIndex>> MapNetworks()
-        {
-            var networks = new List<List<BuildingAndIndex>>(byte.MaxValue);
-            if (!Enabled || !Init || !CollidersAdded || !GridMeshed)
-            {
-                PowerStorageLogger.Log($"Not initialised {Enabled} {Init} {CollidersAdded} {GridMeshed}", PowerStorageMessageType.NetworkMapping);
-                return networks;
-            }
-            
-            var watch = PowerStorageProfiler.Start("MapNetworks");
-            PowerStorageLogger.Log($"Mesher Children: {_gridMesher.transform.childCount}", PowerStorageMessageType.NetworkMapping);
-            foreach (var childObj in _gridMesher.GetAllChildren())
-            {
-                var childLists = childObj.GetComponent<CollisionList>();
-                var networkMembers = childLists.CurrentCollisions.ToList();
-                PowerStorageLogger.Log($"Mesher Child Children: {childObj.transform.childCount}", PowerStorageMessageType.NetworkMapping);
-
-                foreach (var doubleChildObj in childObj.GetAllChildren())
-                {
-                    var doubleChildLists = doubleChildObj.GetComponent<CollisionList>();
-                    PowerStorageLogger.Log($"Mesher Double Child Children: {doubleChildObj.transform.childCount}", PowerStorageMessageType.NetworkMapping);
-                    networkMembers.AddRange(doubleChildLists.CurrentCollisions);
-                }
-                networks.Add(MasterBuildingList.Where(p => networkMembers.Contains(p.GridGameObject)).ToList());
-            }
-            
-            PowerStorageProfiler.Lap("MapNetworks", watch);
-            
-            networks = JoinNetworksByNodes(networks);
-
-            PowerStorageProfiler.Stop("MapNetworks", watch);
-
-            return networks;
-        }
-
-        /// <summary>
-        /// Each 'network' in `networks` is a group of buildings withing 'ElectricityRadius()' of each other.
-        /// Some of the buildings are power poles which conduct by segments (lines) not by radius.
-        /// This method will combine all networks that should conduct electricity via power lines.
-        /// </summary>
-        private static List<List<BuildingAndIndex>> JoinNetworksByNodes(List<List<BuildingAndIndex>> networks)
-        {
-            var watch = PowerStorageProfiler.Start("JoinNetworksByNodes");
-            
-            var nodes = Singleton<NetManager>.instance.m_nodes;
-            var powerPoleNetworks = new List<List<ushort>>(byte.MaxValue);
-            
-            foreach (var network in networks)
-            foreach (var buildingPair in network)
-            {
-                if (!(buildingPair.Building.Info.m_buildingAI is PowerPoleAI))
-                        continue;
-
-                var node = nodes.m_buffer.FirstOrDefault(n => n.m_building == buildingPair.Index);
-                PowerStorageLogger.Log($"Building {buildingPair.Building.Info.name}. b:{buildingPair.Index} x:{buildingPair.Building.m_position.x} z:{buildingPair.Building.m_position.z}", PowerStorageMessageType.NetworkMapping);
-                PowerStorageLogger.Log($"Node {node.Info.name}. b:{node.m_building} x:{node.m_position.x} z:{node.m_position.z}", PowerStorageMessageType.NetworkMapping);
-                
-                var watch2 = PowerStorageProfiler.Start("CollectBuildingIdsOnNetwork");
-                var visitedBuildings = new List<ushort>(ushort.MaxValue);
-                var nodesExplored = CollectBuildingsOnNetwork(node, ref visitedBuildings);
-                PowerStorageProfiler.Stop("CollectBuildingIdsOnNetwork", watch2);
-
-                powerPoleNetworks.Add(nodesExplored);
-                    
-                PowerStorageProfiler.Lap("JoinNetworksByNodes", watch);
-            }
-            
-            foreach (var powerPoleNetwork in powerPoleNetworks)
-            {
-                var networksToRemove = new List<int>(byte.MaxValue);
-                var newMegaNetwork = new List<BuildingAndIndex>(ushort.MaxValue);
-
-                for (var i = 0; i < networks.Count; i++)
-                {
-                    if (!networks[i].Any(n => powerPoleNetwork.Any(b => n.Index == b))) 
-                        continue;
-
-                    networksToRemove.Add(i);
-                    newMegaNetwork.AddRange(networks[i]);
-                }
-
-                if (networksToRemove.Count <= 1) 
-                    continue;
-                
-                foreach (var i in networksToRemove.Distinct().OrderByDescending(n => n))
-                {
-                    networks.RemoveAt(i);
-                }
-                networks.Add(newMegaNetwork);
-            }
-            
-            PowerStorageProfiler.Stop("JoinNetworksByNodes", watch);
-            return networks;
-        }
-
-        private static int GlobalIndex;
-
-        /// <summary>
-        /// Each power pole has a building and a network node, each power pole is connected by segments (lines).
-        /// Follow the lines of the pole 'node' (recursively) to collect the whole network that `node` is a part of.
-        /// </summary>
-        private static List<ushort> CollectBuildingsOnNetwork(NetNode node, ref List<ushort> visitedBuildings)
-        {
-            GlobalIndex++;
-
-            PowerStorageLogger.Log($"{GlobalIndex}: NodeBuilding: {node.m_building}", PowerStorageMessageType.Saving);
-            if (!visitedBuildings.Contains(node.m_building))
-            {
-                visitedBuildings.Add(node.m_building);
-                GetEdges(node.m_segment0, ref visitedBuildings);
-                GetEdges(node.m_segment1, ref visitedBuildings);
-                GetEdges(node.m_segment2, ref visitedBuildings);
-                GetEdges(node.m_segment3, ref visitedBuildings);
-                GetEdges(node.m_segment4, ref visitedBuildings);
-                GetEdges(node.m_segment5, ref visitedBuildings);
-                GetEdges(node.m_segment6, ref visitedBuildings);
-                GetEdges(node.m_segment7, ref visitedBuildings);
-            }
-            else
-            {
-                PowerStorageLogger.Log($"{GlobalIndex}: Skip. Currently have: {visitedBuildings.Count}", PowerStorageMessageType.Saving);
-            }
-            
-            return visitedBuildings;
-        }
-
-        private static void GetEdges(ushort segmentIndex, ref List<ushort> visitedBuildings)
-        {
-            if (segmentIndex <= 0) 
-                return;
-
-            var segment = Singleton<NetManager>.instance.m_segments.m_buffer[segmentIndex];
-            var nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
-
-            PowerStorageLogger.Log($"{GlobalIndex}: Segment: {segment}", PowerStorageMessageType.Saving);
-            
-            var s = segment.m_startNode;
-            var startNode = nodes[s];
-            CollectBuildingsOnNetwork(startNode, ref visitedBuildings);
-
-            var e = segment.m_endNode;
-            var endNode = nodes[e];
-            CollectBuildingsOnNetwork(endNode, ref visitedBuildings);
-        }
-
-
-        /// <summary>
-        /// From a single building collect its neighbours, for each neighbour collect its neighbours.
-        /// Return a list of all buildings in range of a building in range of `point`.
-        /// I've called the collection of buildings a 'network'.
-        /// </summary>
-        private static List<BuildingAndIndex> MapNetwork(BuildingAndIndex point, ref Dictionary<GameObject, BuildingAndIndex> unmappedDict)
-        {
-            var network = new List<BuildingAndIndex>(short.MaxValue) { point };
-            if(unmappedDict.ContainsKey(point.GridGameObject))
-                unmappedDict.Remove(point.GridGameObject);
-
-            var inRange = new Queue<BuildingAndIndex>();
-            inRange.Enqueue(point);
-            do
-            {
-                List<GameObject> nearPoints = null;
-                Dispatcher.CreateSafeAction(() =>
-                {
-                    nearPoints = inRange.Dequeue().GridGameObject.GetComponent<CollisionList>().CurrentCollisions;
-                }).Invoke();
-
-                if (nearPoints == null)
-                {
-                    PowerStorageLogger.LogError("Mapping Gone Wrong", PowerStorageMessageType.NetworkMapping);
-                    return network;
-                }
-
-                foreach (var gameObject in nearPoints)
-                {
-                    if (unmappedDict.ContainsKey(gameObject))
-                    {
-                        var match = unmappedDict[gameObject];
-                        if(network.Contains(match))
-                            continue;
-
-                        inRange.Enqueue(match);
-                        network.Add(match);
-                        unmappedDict.Remove(match.GridGameObject);
-                    }
-                }
-            } while (inRange.Any());
-
-            PowerStorageLogger.Log($"MapNetwork ({network.Count})", PowerStorageMessageType.NetworkMapping);
-            
-            return network;
         }
     }
 }

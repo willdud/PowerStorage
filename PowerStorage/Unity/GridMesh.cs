@@ -18,6 +18,9 @@ namespace PowerStorage.Unity
             collider.convex = true;
             collider.isTrigger = true;
             collider.enabled = true;
+
+            var renderer = GetComponent<MeshRenderer>();
+            renderer.enabled = PowerStorage.DebugRenders;
         }
     }
 }

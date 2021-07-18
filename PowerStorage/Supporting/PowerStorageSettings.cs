@@ -19,5 +19,7 @@ namespace PowerStorage.Supporting
         public bool? Debug = false;
         [SerializeField]
         public bool? Profile = false;
+        [SerializeField]
+        public bool? DebugRenders = false;
     }
 }

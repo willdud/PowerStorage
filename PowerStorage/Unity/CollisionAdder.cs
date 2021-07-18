@@ -12,8 +12,11 @@ namespace PowerStorage.Unity
     {
         private static GameObject _gameObject;
         public static bool InProgress;
+        public static bool Done;
         public static int Progress;
         public static int Total;
+        
+        private bool _knownStatus;
 
         public CollisionAdder()
         {
@@ -28,7 +31,26 @@ namespace PowerStorage.Unity
                 StartCoroutine(AddColliderToBuildings());
             }
         }
-        
+
+        void Update()
+        {
+            if (_knownStatus == PowerStorage.DebugRenders)
+                return;
+
+            if (!PowerStorage.DebugRenders)
+            {
+                foreach (var r in GetComponentsInChildren<Renderer>())
+                    r.enabled = false;
+            }
+            else
+            {
+                foreach (var r in GetComponentsInChildren<Renderer>())
+                    r.enabled = true;
+            }
+
+            _knownStatus = PowerStorage.DebugRenders;
+        }
+
         public static IEnumerator AddColliderToBuildings()
         {
             var watch = PowerStorageProfiler.Start("Add Collider To Buildings");
@@ -65,8 +87,8 @@ namespace PowerStorage.Unity
 
                 yield return new WaitForFixedUpdate(); //zomg so good. Any other value is stutter city.
             }
-            
-            GridsBuildingsRollup.CollidersAdded = true;
+
+            Done = true;
             PowerStorageProfiler.Stop("Add Collider To Buildings", watch);
         }
 
@@ -93,7 +115,8 @@ namespace PowerStorage.Unity
             meshCollider.isTrigger = true;
             meshCollider.transform.position = building.m_position;
 
-            networkGameObject.AddComponent<MeshRenderer>();
+            var renderer = networkGameObject.AddComponent<MeshRenderer>();
+            renderer.enabled = PowerStorage.DebugRenders;
 
             item.GridGameObject = networkGameObject;
             PowerStorageLogger.Log($"building: {building.m_infoIndex}, {building.Info.name}, {building.m_position} | SphereCollider e: {meshCollider.enabled}, p: {meshCollider.transform.position} | {meshCollider.transform.localPosition}", PowerStorageMessageType.Loading);
