@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using ColossalFramework;
 using UnityEngine;
 
@@ -7,15 +6,12 @@ namespace PowerStorage
 {
     public class PowerStorageAi : PowerPlantAI
     {
-        // ushort / GridMemberLastTickStats 
-        public static Hashtable BackupGrid { get; internal set; }
         public DateTime LastAnnoyance { get; set; }
         
         private bool _chargingChirpFlag;
 
         public PowerStorageAi()
         {
-            BackupGrid = new Hashtable();
             LastAnnoyance = Singleton<SimulationManager>.instance.m_currentGameTime;
         }
 
@@ -23,9 +19,8 @@ namespace PowerStorage
         {
             base.CreateBuilding(buildingId, ref data);
             m_resourceType = TransferManager.TransferReason.None;
-            BackupGrid.Add(buildingId, new GridMemberLastTickStats
+            Grid.BackupGrid.TryAdd(buildingId, new GridMemberLastTickStats(buildingId)
             {
-                BuildingId = buildingId,
                 CapacityKw = m_resourceCapacity.ToKw(),
                 PotentialOutputKw = m_resourceConsumption.ToKw()
             });
@@ -33,7 +28,7 @@ namespace PowerStorage
 
         public override void ReleaseBuilding(ushort buildingId, ref Building data)
         {
-            BackupGrid.Remove(buildingId);
+            Grid.BackupGrid.TryRemove(buildingId);
             base.ReleaseBuilding(buildingId, ref data);
         }
         
@@ -68,7 +63,17 @@ namespace PowerStorage
             int totalVisitorCount,
             int visitPlaceCount)
         {
-            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
+            Grid.BackupGrid.TryGetValue(buildingId, out var myGridData);
+            if(myGridData == null)
+            {
+                myGridData = new GridMemberLastTickStats(buildingId)
+                {
+                    CapacityKw = m_resourceCapacity.ToKw(),
+                    PotentialOutputKw = m_resourceConsumption.ToKw()
+                };
+                Grid.BackupGrid.TryAdd(buildingId, myGridData);
+            }                
+
             var demandKw = GetGlobalPowerDemand(buildingData);
             var energyCapacityKw = myGridData.CapacityKw;
             var energyReserveKw = myGridData.CurrentChargeKw;
@@ -87,7 +92,7 @@ namespace PowerStorage
                 if (energyReserveKw < energyCapacityKw)
                 {
                     var excess = Math.Max(0, ((demandKw * -1) - PowerStorage.SafetyKwIntake));
-                    var portionOfExcess = excess / Math.Max(1, BackupGrid.Count - BackupGridFullCount());
+                    var portionOfExcess = excess / Math.Max(1, Grid.BackupGrid.Map.Count - BackupGridFullCount());
                     amountToAddKw = Math.Min(m_resourceConsumption.ToKw(), portionOfExcess);
                     var amountToSubtractKw = amountToAddKw;
                     amountToAddKw = (int)(amountToAddKw * (1 - PowerStorage.LossRatio));
@@ -191,7 +196,17 @@ namespace PowerStorage
 
         public override int GetElectricityRate(ushort buildingId, ref Building data)
         {
-            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
+            Grid.BackupGrid.TryGetValue(buildingId, out var myGridData);
+            if(myGridData == null)
+            {
+                myGridData = new GridMemberLastTickStats(buildingId)
+                {
+                    CapacityKw = m_resourceCapacity.ToKw(),
+                    PotentialOutputKw = m_resourceConsumption.ToKw()
+                };
+                Grid.BackupGrid.TryAdd(buildingId, myGridData);
+            }
+
             var energyReserveKw = myGridData.CurrentChargeKw;
             var productionRate = (int) data.m_productionRate;
             int calculatedRate;
@@ -223,7 +238,18 @@ namespace PowerStorage
 
         public override string GetLocalizedStats(ushort buildingId, ref Building data)
         {
-            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
+            Grid.BackupGrid.TryGetValue(buildingId, out var myGridData);
+            
+            if(myGridData == null)
+            {
+                myGridData = new GridMemberLastTickStats(buildingId)
+                {
+                    CapacityKw = m_resourceCapacity.ToKw(),
+                    PotentialOutputKw = m_resourceConsumption.ToKw()
+                };
+                Grid.BackupGrid.TryAdd(buildingId, myGridData);
+            }
+
             var str = LocaleFormatter.FormatGeneric("AIINFO_ELECTRICITY_PRODUCTION", (myGridData.ChargeProvidedKw + 500) /1000);
             return  $"Power Input: {(myGridData.ChargeTakenKw + 500) / 1000} MW" + Environment.NewLine 
                 + $"Power Loss ({PowerStorage.LossRatio*100}%): {(myGridData.LossKw + 500) / 1000} MW" + Environment.NewLine 
@@ -251,7 +277,7 @@ namespace PowerStorage
         private static int BackupGridActiveContributionSum()
         {
             var i = 0;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && memberData.IsActive)
                 {
@@ -263,7 +289,7 @@ namespace PowerStorage
         private static int BackupGridActiveConsumptionSum()
         {
             var i = 0;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && memberData.IsActive)
                 {
@@ -276,7 +302,7 @@ namespace PowerStorage
         private static int BackupGridActiveCount()
         {
             var i = 0;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff && memberData.IsActive)
                     i++;
@@ -287,7 +313,7 @@ namespace PowerStorage
         private static int BackupGridFullCount()
         {
             var i = 0;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && (memberData.IsFull || memberData.IsOff))
                     i++;
@@ -301,7 +327,17 @@ namespace PowerStorage
             if(totalGridPotential < demandWithSafetyKw)
                 return int.MaxValue;
 
-            var myGridData = BackupGrid[buildingId] as GridMemberLastTickStats ?? new GridMemberLastTickStats();
+            Grid.BackupGrid.TryGetValue(buildingId, out var myGridData);
+            if(myGridData == null)
+            {
+                myGridData = new GridMemberLastTickStats(buildingId) 
+                { 
+                    CapacityKw = m_resourceCapacity.ToKw(), 
+                    PotentialOutputKw = m_resourceConsumption.ToKw() 
+                };
+                Grid.BackupGrid.TryAdd(buildingId, myGridData);
+            }
+
             var evenShareDemandKw = demandWithSafetyKw / Math.Max(1, BackupGridActiveCount());
             var myOffering = Math.Min(myGridData.CurrentChargeKw, myGridData.PotentialOutputKw);
             if(myOffering < evenShareDemandKw)
@@ -329,7 +365,7 @@ namespace PowerStorage
         {
             eliminated = 0;
             participants = 0;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff)
                 {
@@ -350,7 +386,7 @@ namespace PowerStorage
         private static int GetTotalGridPotential()
         {
             var i = 0;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && !memberData.IsOff)
                 {
@@ -363,7 +399,7 @@ namespace PowerStorage
         private static ushort LowestBuildingId()
         {
             var i = ushort.MaxValue;
-            foreach (DictionaryEntry entry in BackupGrid)
+            foreach (var entry in Grid.BackupGrid.Map)
             {
                 if (entry.Value is GridMemberLastTickStats memberData && memberData.BuildingId < i)
                 {
