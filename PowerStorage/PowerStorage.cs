@@ -13,6 +13,7 @@ namespace PowerStorage
         public static float LossRatio { get; set; } = 0.2f;
         public static int SafetyKwIntake { get; set; } = 2000;
         public static int SafetyKwDischarge { get; set; } = 2000;
+        public static bool Enabled { get; set; } = true;
         public static bool Chirp { get; set; } = true;
         public static bool DebugLog { get; set; } = false;
         public static bool Profile { get; set; } = false;
@@ -35,6 +36,14 @@ namespace PowerStorage
             UISlider sliderDischargeSafety = null;
 
             var group = helper.AddGroup("Power Storage Settings");
+
+            group.AddCheckbox("Enabled", Enabled, isChecked =>
+            {
+                GridsBuildingsRollup.Enabled = isChecked;
+            });
+
+            group.AddSpace(20);
+
             sliderPowerLoss = (UISlider)group.AddSlider("Power loss on conversion", 0, 1, 0.1f, LossRatio, (value) =>
             {
                 if (sliderPowerLoss != null)

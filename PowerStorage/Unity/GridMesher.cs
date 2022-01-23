@@ -25,6 +25,8 @@ namespace PowerStorage.Unity
     /// </summary>
     public class GridMesher : MonoBehaviour
     {
+        public static int Total;
+        public static int Progress;
         public static bool InProgress;
         private static float _min = -5019.125f;
         private static float _max = 5019.125f;
@@ -34,6 +36,8 @@ namespace PowerStorage.Unity
         {
             if (!InProgress)
             {
+                Progress = 0;
+                Total = 300;
                 InProgress = true;
                 StartCoroutine(MakeMeshes());
             }
@@ -79,6 +83,7 @@ namespace PowerStorage.Unity
                         pointsForMeshes.Add(thisMesh, perimeterPoints);
                     }
 
+                    Progress = (int)((y - _min) / (_max - _min) * 100);
                 }
             }).Run();
             while (!taskPlot.hasEnded)
@@ -89,6 +94,7 @@ namespace PowerStorage.Unity
             PowerStorageLogger.Log($"Mesher, meshes: {pointsForMeshes.Count}.", PowerStorageMessageType.Saving);
             #endregion Plot Conductivity
 
+            Total = (pointsForMeshes.Count * 2) + 301;
 
             #region Meshes from points
             var iterator = 0;
@@ -160,6 +166,8 @@ namespace PowerStorage.Unity
                             faceMesh.RecalculateNormals();
                             faceMesh.RecalculateBounds();
                             subMeshes.Add(faceMesh);
+
+                            Progress++;
                         }
                         catch (Exception ex)
                         {
@@ -179,6 +187,7 @@ namespace PowerStorage.Unity
                 var mFilter = gridMesh.GetComponent<MeshFilter>();
                 mFilter.mesh = subMeshes.First();
                 gridMesh.transform.parent = gameObject.transform;
+                Progress++;
 
                 foreach (var mesh in subMeshes.Skip(1))
                 {
@@ -195,7 +204,7 @@ namespace PowerStorage.Unity
                     collider.enabled = true;
                     var renderer = childGridMesh.AddComponent<MeshRenderer>();
                     renderer.enabled = PowerStorage.DebugRenders;
-
+                    Progress++;
                     yield return new WaitForFixedUpdate();
                 }
 
@@ -211,6 +220,8 @@ namespace PowerStorage.Unity
             var networks = new List<List<BuildingAndIndex>>(byte.MaxValue);
             var watchMapNetworks = PowerStorageProfiler.Start("MapNetworks");
             PowerStorageLogger.Log($"Mesher Children: {gameObject.transform.childCount}", PowerStorageMessageType.NetworkMapping);
+            var increment = gameObject.GetAllChildren().Count / 100;
+
             foreach (var childObj in gameObject.GetAllChildren())
             {
                 var childLists = childObj.GetComponent<CollisionList>();
@@ -225,7 +236,9 @@ namespace PowerStorage.Unity
                     yield return new WaitForFixedUpdate();
                 }
                 networks.Add(GridsBuildingsRollup.MasterBuildingList.Where(p => networkMembers.Contains(p.GridGameObject)).ToList());
-                
+
+                Progress += increment; 
+
                 yield return new WaitForFixedUpdate();
             }
             PowerStorageProfiler.Lap("MapNetworks", watchMapNetworks);
@@ -256,7 +269,9 @@ namespace PowerStorage.Unity
                 PowerStorageProfiler.Lap("JoinNetworksByNodes", watchJoinNetworksByNodes);
                 yield return new WaitForFixedUpdate();
             }
-            
+
+            Progress += 50;
+
             foreach (var powerPoleNetwork in powerPoleNetworks)
             {
                 var networksToRemove = new List<int>(byte.MaxValue);
@@ -282,6 +297,9 @@ namespace PowerStorage.Unity
 
                 yield return new WaitForFixedUpdate();
             }
+
+            Progress += 50;
+
             PowerStorageProfiler.Stop("JoinNetworksByNodes", watchJoinNetworksByNodes);
             PowerStorageProfiler.Stop("MapNetworks", watchMapNetworks);
             #endregion Join networks by powerpole networks
@@ -337,7 +355,9 @@ namespace PowerStorage.Unity
             PowerStorageLogger.Log($"Done Merging networks ({GridsBuildingsRollup.BuildingsGroupedToNetworks.Count})", PowerStorageMessageType.NetworkMerging);
             #endregion Update Master network list with new networks
             
+
             PowerStorageProfiler.Stop("Make Meshes", watch);
+            Progress = Total;
             InProgress = false;
             DestroyObject(gameObject);
         }

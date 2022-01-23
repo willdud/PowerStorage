@@ -22,7 +22,7 @@ namespace PowerStorage.Unity
         public static UIView View;
     }
 
-    public class PowerStorageUi : LoadingExtensionBase
+    public class PowerStorageUiLoading : LoadingExtensionBase
 	{
         private GameObject _powerStorageUiObj;
 
@@ -40,8 +40,8 @@ namespace PowerStorage.Unity
 
             PowerStorageLogger.Log("Add UI", PowerStorageMessageType.Ui);
             _powerStorageUiObj = new GameObject();
-            _powerStorageUiObj.AddComponent<Ui>();
-            _powerStorageUiObj.name = "PowerStorageUiObj";
+            _powerStorageUiObj.AddComponent<PowerStorageUi>();
+
         }
 
 		public override void OnLevelUnloading()
@@ -55,17 +55,176 @@ namespace PowerStorage.Unity
         }
 	}
 
-    public class Ui : MonoBehaviour
+
+
+    public class PowerStorageUi : MonoBehaviour
     {
-        private Rect _windowRect = new Rect(Screen.width - 1200, Screen.height - 650, 1000, 500);
-        private bool _showingWindow = false;
-        private bool _showingFacilities = false;
-        private bool _showingColliders = false;
+        public const string ColliderProgressName = "PSAddCollidersProgress";
+        public const string MesherProgressName = "PSGridMesherProgress";
+        public const string PanelName = "PowerStoragePanel";
         private bool _uiSetup = false;
         private UIButton _button;
 
+
+        public PowerStorageUi()
+        {
+            name = "PowerStorageUiObj";
+        }
+
+        void Start()
+        {
+
+        }
+
+        void Update()
+        {
+            AttachToExistingUi();
+            HandleProgress();
+        }
+        
+        private void HandleProgress()
+        {
+            if (!_uiSetup)
+                return;
+
+            var panel = UiHolder.ElecInfo.Find<UIPanel>(PanelName);
+            var progressCollider = panel.Find<UIProgressBar>(ColliderProgressName);
+            progressCollider.tooltip = $"{CollisionAdder.Progress} / {CollisionAdder.Total} Buildings Registered";
+            progressCollider.maxValue = CollisionAdder.Total;
+            progressCollider.value = CollisionAdder.Progress;
+            
+            var progressMesh = panel.Find<UIProgressBar>(MesherProgressName);
+            progressMesh.tooltip = $"{GridMesher.Progress} / {GridMesher.Total} Meters Checked";
+            progressMesh.maxValue = GridMesher.Total;
+            progressMesh.value = GridMesher.Progress;
+        }
+
+        private void AttachToExistingUi()
+        {
+            if (_uiSetup)
+                return;
+
+            var c = UIView.Find("(Library) ElectricityInfoViewPanel");
+            if (c == null || !c.isEnabled || !c.isVisible)
+                return;
+
+            _uiSetup = true;
+            UiHolder.ElecInfo = c;
+            PowerStorageLogger.Log($"Elec: {c.name}", PowerStorageMessageType.Ui);
+
+            var pos = UiHolder.ElecInfo.absolutePosition + new Vector3(UiHolder.ElecInfo.size.x + 5, 0, 0);
+            _button = UiHolder.ElecInfo.AddUIComponent<UIButton>();
+            _button.text = "Power Storage";
+            _button.normalBgSprite = "ButtonMenu";
+            _button.normalFgSprite = "ThumbStatistics";
+            _button.hoveredTextColor = new Color32(7, 132, 255, 255);
+            _button.pressedTextColor = new Color32(30, 30, 44, 255);
+            _button.disabledTextColor = new Color32(7, 7, 7, 255);
+            _button.autoSize = true;
+            _button.absolutePosition = pos;
+            _button.eventClick += ShowPanelButtonClick;
+            
+            var panel = UiHolder.ElecInfo.AddUIComponent<UIPanel>();
+            panel.Hide();
+            panel.name = PanelName;
+            panel.absolutePosition = _button.absolutePosition + new Vector3(0, _button.height + 5);
+            panel.backgroundSprite = "MenuPanel2";
+            panel.width = 800;
+            panel.height = 500;
+            panel.autoSize = true;
+
+            var heading = panel.AddUIComponent<UILabel>();
+            heading.text = "Power Storage";
+            heading.relativePosition = new Vector3();
+            heading.height = 25;
+            heading.width = panel.width;
+            heading.textAlignment = UIHorizontalAlignment.Center;
+
+            var colliderProgressText = panel.AddUIComponent<UILabel>();
+            colliderProgressText.text = "Smart Meter Installation:";
+            colliderProgressText.relativePosition = new Vector3(5, 55);
+            colliderProgressText.height = 25;
+            colliderProgressText.autoSize = true;
+            colliderProgressText.textAlignment = UIHorizontalAlignment.Left;
+
+            var progressCollider = panel.AddUIComponent<UIProgressBar>();
+            progressCollider.relativePosition = colliderProgressText.relativePosition + new Vector3(0, colliderProgressText.width + 10);
+            progressCollider.backgroundSprite = "GenericProgressBar";
+            progressCollider.progressSprite = "GenericProgressBarFill";
+            progressCollider.fillMode = UIFillMode.Fill;
+            progressCollider.height = 20;
+            progressCollider.width = panel.width - 10;
+            progressCollider.name = ColliderProgressName;
+
+            var gridProgressText = panel.AddUIComponent<UILabel>();
+            gridProgressText.text = "Grid Update:";
+            gridProgressText.relativePosition = new Vector3(5, 100);
+            gridProgressText.height = 25;
+            gridProgressText.autoSize = true;
+            gridProgressText.textAlignment = UIHorizontalAlignment.Left;
+
+            var gridCollider = panel.AddUIComponent<UIProgressBar>();
+            gridCollider.relativePosition = gridProgressText.relativePosition + new Vector3(0, gridProgressText.width + 10);
+            gridCollider.backgroundSprite = "GenericProgressBar";
+            gridCollider.progressSprite = "GenericProgressBarFill";
+            gridCollider.fillMode = UIFillMode.Fill;
+            gridCollider.height = 20;
+            gridCollider.width = panel.width - 10;
+            gridCollider.name = MesherProgressName;
+        }
+
+        private void ShowPanelButtonClick(UIComponent sender, UIMouseEventParameter e)
+        {
+            var panel = UiHolder.ElecInfo.Find<UIPanel>(PanelName);
+            panel.enabled = !panel.enabled;
+            if (panel.enabled)
+            {
+                panel.Show(true);
+                UiHolder.SelectedBuilding = null;
+                UiHolder.SelectedNetwork = null;
+            }
+            else
+            {
+                panel.Hide();
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public class Ui : MonoBehaviour
+    {
+        private static readonly int Width = 800;
+        private static readonly int Height = 500;
+        private static readonly int PositionX = Screen.width - (Screen.width / 2 - Width / 2);
+        private static readonly int PositionZ = Screen.height - (Screen.height/2 - Height/2);
+
+        private Rect _windowRect = new Rect(PositionX, PositionZ, Width, Height);
+        private bool _showingWindow = false;
+        private bool _showingFacilities = false;
+        private bool _uiSetup = false;
+
         private void SetupUi()
         {
+                return;
             var c = UIView.Find("(Library) ElectricityInfoViewPanel");
 
             if (c == null || !c.isEnabled || !c.isVisible)
@@ -78,16 +237,16 @@ namespace PowerStorage.Unity
             UiHolder.ButtonX = (pos.x + c.width) * UiHolder.View.inputScale - 2;
             UiHolder.ButtonY = (pos.y + 10) * UiHolder.View.inputScale;
 
-            _button = UiHolder.ElecInfo.AddUIComponent<UIButton>();
-            _button.text = "Power Storage";
-            _button.normalBgSprite = "ButtonMenu";
-            _button.normalFgSprite = "ThumbStatistics";
-            _button.hoveredTextColor = new Color32(7, 132, 255, 255);
-            _button.pressedTextColor = new Color32(30, 30, 44, 255);
-            _button.disabledTextColor = new Color32(7, 7, 7, 255);
-            _button.autoSize = true;
-            _button.absolutePosition = pos;
-            _button.eventClick += ButtonClick;
+            //_button = UiHolder.ElecInfo.AddUIComponent<UIButton>();
+            //_button.text = "Power Storage";
+            //_button.normalBgSprite = "ButtonMenu";
+            //_button.normalFgSprite = "ThumbStatistics";
+            //_button.hoveredTextColor = new Color32(7, 132, 255, 255);
+            //_button.pressedTextColor = new Color32(30, 30, 44, 255);
+            //_button.disabledTextColor = new Color32(7, 7, 7, 255);
+            //_button.autoSize = true;
+            //_button.absolutePosition = pos;
+            //_button.eventClick += ButtonClick;
         }
 
         private void ButtonClick(UIComponent sender, UIMouseEventParameter e)
@@ -95,7 +254,6 @@ namespace PowerStorage.Unity
             if (_showingWindow)
             {
                 _showingFacilities = false;
-                _showingColliders = false;
                 UiHolder.SelectedBuilding = null;
                 UiHolder.SelectedNetwork = null;
             }
@@ -114,17 +272,17 @@ namespace PowerStorage.Unity
                 else
                 {
                     PowerStorageLogger.Log($"UI ElecInfo: e:{UiHolder.ElecInfo.isEnabled} v:{UiHolder.ElecInfo.isVisible}", PowerStorageMessageType.Ui);
-                    if (UiHolder.ElecInfo != null && UiHolder.ElecInfo.isVisible)
-                        _button.Show();
-                    else
-                        _button.Hide();
+                    //if (UiHolder.ElecInfo != null && UiHolder.ElecInfo.isVisible)
+                        //_button.Show();
+                    //else
+                        //_button.Hide();
 
                     if (_showingWindow)
                     {
                         _windowRect = GUILayout.Window(315, _windowRect, ShowPowerStorageWindow, "Power Storage - Grid Stats");
                         if (_windowRect.x < -800 || _windowRect.y < -300 || _windowRect.x >= Screen.width || _windowRect.y >= Screen.height)
                         {
-                            _windowRect.position = new Vector2(Screen.width - 1200, Screen.height - 650);
+                            _windowRect.position = new Vector2(PositionX, PositionZ);
                         }
                     }
                 }
@@ -149,10 +307,6 @@ namespace PowerStorage.Unity
             if (_showingFacilities)
             {
                 RenderFacilitiesScreen();
-            } 
-            else if (_showingColliders)
-            {
-                RenderCollidersScreen();
             } 
             else if (UiHolder.SelectedNetwork.HasValue)
             {
@@ -221,21 +375,13 @@ namespace PowerStorage.Unity
             if (GUILayout.Button("Storage Facilities"))
             {
                 _showingFacilities = true;
-                _showingColliders = false;
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Colliders"))
-            {
-                _showingFacilities = false;
-                _showingColliders = true;
             }
             GUILayout.EndHorizontal();
             GUILayout.Space(12);
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Close"))
             {
-                _button.state = UIButton.ButtonState.Normal;
+                //_button.state = UIButton.ButtonState.Normal;
                 _showingWindow = false;
             }
             GUILayout.EndHorizontal();
@@ -449,7 +595,6 @@ namespace PowerStorage.Unity
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Back"))
             {
-                _showingColliders = false;
                 _showingFacilities = false;
             }
             GUILayout.EndHorizontal();
