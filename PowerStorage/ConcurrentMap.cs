@@ -10,7 +10,13 @@ namespace PowerStorage
     {
         private object _lock = new object();
         private GridMemberLastTickStats[] deserializationHolder;
-        public Dictionary<ushort, GridMemberLastTickStats> Map = new Dictionary<ushort, GridMemberLastTickStats>();
+
+        public Dictionary<ushort, GridMemberLastTickStats> Map { get; set; }
+
+        public ConcurrentMap()
+        {
+            Map = Map ?? new Dictionary<ushort, GridMemberLastTickStats>();
+        }
 
         public bool TryGetValue(ushort key, out GridMemberLastTickStats value)
         {
@@ -24,8 +30,10 @@ namespace PowerStorage
         {
             lock (_lock)
             {
+                PowerStorageLogger.Log($"Add A - {key}", PowerStorageMessageType.Grid);
                 if (!Map.ContainsKey(key))
                 {
+                    PowerStorageLogger.Log($"Add B - {key}", PowerStorageMessageType.Grid);
                     Map.Add(key, value);
                     return true;
                 }
@@ -37,6 +45,7 @@ namespace PowerStorage
         {
             lock (_lock)
             {
+                PowerStorageLogger.Log($"Remove - {key}", PowerStorageMessageType.Grid);
                 return Map.Remove(key);
             }
         }
@@ -46,7 +55,7 @@ namespace PowerStorage
             var values = Map.Values.ToArray();
             foreach (var value in values)
             {
-                PowerStorageLogger.Log($"Saving - {value.BuildingId} - {value.CurrentChargeKw}Kw of {value.CapacityKw}Kw");
+                PowerStorageLogger.Log($"Saving - {value.BuildingId} - {value.CurrentChargeKw}Kw of {value.CapacityKw}Kw", PowerStorageMessageType.Saving);
             }
             s.WriteObjectArray(values);
         }
@@ -67,14 +76,14 @@ namespace PowerStorage
                 else
                     savedFileMap.Add(value.BuildingId, value);
 
-                PowerStorageLogger.Log($"Loading - {value.BuildingId} - {value.CurrentChargeKw}Kw of {value.CapacityKw}Kw");
+                PowerStorageLogger.Log($"Loading - {value.BuildingId} - {value.CurrentChargeKw}Kw of {value.CapacityKw}Kw", PowerStorageMessageType.Loading);
             }
 
             Map = savedFileMap;
 
             foreach (var p in Map)
             {
-                PowerStorageLogger.Log($"Post Load - {p.Value.BuildingId} - {p.Value.CurrentChargeKw}Kw of {p.Value.CapacityKw}Kw");
+                PowerStorageLogger.Log($"Post Load - {p.Value.BuildingId} - {p.Value.CurrentChargeKw}Kw of {p.Value.CapacityKw}Kw", PowerStorageMessageType.Loading);
             }
         }
     }

@@ -10,24 +10,36 @@ namespace PowerStorage
     {
         const string GridKey = "PowerStorage|GridSerializer";
         public const uint DataVersion = 0;
-            
-        public volatile static ConcurrentMap BackupGrid;      
+
+        private static volatile ConcurrentMap _backupGrid;
+        public static ConcurrentMap BackupGrid 
+        { 
+            get 
+            {          
+                _backupGrid = _backupGrid ?? new ConcurrentMap();                
+                return _backupGrid ;
+            }
+            set
+            {
+                PowerStorageLogger.Log("I've been set to: " + value + " : " + (value?.Map?.Count.ToString() ?? "NULL"), PowerStorageMessageType.Grid);
+                _backupGrid = value; 
+            }
+        }
 
         public override void OnCreated(ISerializableData serializableData)
         {
-            base.OnCreated(serializableData);            
-            BackupGrid = new ConcurrentMap();
+            base.OnCreated(serializableData);  
         }
 
         public override void OnLoadData()
         {            
             base.OnLoadData();
 
-            PowerStorageLogger.Log("Loading data. Time: " + Time.realtimeSinceStartup);
+            PowerStorageLogger.Log("Loading data. Time: " + Time.realtimeSinceStartup, PowerStorageMessageType.Loading);
             var data = serializableDataManager.LoadData(GridKey);
             if (data == null)
             {
-                PowerStorageLogger.Log("No data to load.");
+                PowerStorageLogger.Log("No data to load.", PowerStorageMessageType.Loading);
                 return;
             }
            
@@ -39,13 +51,14 @@ namespace PowerStorage
                     BackupGrid = DataSerializer.Deserialize<ConcurrentMap>(stream, DataSerializer.Mode.Memory);
                 }
 
-                PowerStorageLogger.Log($"Finished loading data. Time: {Time.realtimeSinceStartup} - {BackupGrid.Map.Count} Buildings. Bytes: {data.Length}");
+                PowerStorageLogger.Log($"Finished loading data. Time: {Time.realtimeSinceStartup} - {BackupGrid.Map.Count} Buildings. Bytes: {data.Length}", PowerStorageMessageType.Loading);
             }
             catch (Exception e)
             {
-                PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " loading data.");
-                PowerStorageLogger.LogError(e.Message);
-                PowerStorageLogger.LogError(e.StackTrace);
+                PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " loading data.", PowerStorageMessageType.All);
+                PowerStorageLogger.LogError(e.Message, PowerStorageMessageType.All);
+                PowerStorageLogger.LogError(e.StackTrace, PowerStorageMessageType.All);
+                BackupGrid = new ConcurrentMap();
             }
         }
 
@@ -53,7 +66,7 @@ namespace PowerStorage
         {            
             base.OnSaveData();
 
-            PowerStorageLogger.Log($"Saving data - {BackupGrid.Map.Count} Buildings");
+            PowerStorageLogger.Log($"Saving data - {BackupGrid.Map.Count} Buildings", PowerStorageMessageType.Saving);
             using(var memStream = new MemoryStream())
             {
                 try
@@ -61,13 +74,13 @@ namespace PowerStorage
                     DataSerializer.Serialize(memStream, DataSerializer.Mode.Memory, DataVersion, BackupGrid);
                     var bytes = memStream.ToArray();
                     serializableDataManager.SaveData(GridKey, bytes);
-                    PowerStorageLogger.Log($"Finished saving data. Bytes: {bytes.Length}");
+                    PowerStorageLogger.Log($"Finished saving data. Bytes: {bytes.Length}", PowerStorageMessageType.Saving);
                 }
                 catch (Exception e)
                 {
-                    PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " saving data.");
-                    PowerStorageLogger.LogError(e.Message);
-                    PowerStorageLogger.LogError(e.StackTrace);
+                    PowerStorageLogger.LogError("Unexpected " + e.GetType().Name + " saving data.", PowerStorageMessageType.Saving);
+                    PowerStorageLogger.LogError(e.Message, PowerStorageMessageType.Saving);
+                    PowerStorageLogger.LogError(e.StackTrace, PowerStorageMessageType.Saving);
                 }
                 finally
                 {

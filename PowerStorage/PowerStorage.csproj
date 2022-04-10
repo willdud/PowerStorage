@@ -38,6 +38,13 @@
     <Reference Include="Assembly-CSharp-firstpass">
       <HintPath>W:\SteamLib3\steamapps\common\Cities_Skylines\Cities_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
     </Reference>
+    <Reference Include="CitiesHarmony.API, Version=2.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\CitiesHarmony.API.2.1.0\lib\net35\CitiesHarmony.API.dll</HintPath>
+    </Reference>
+    <Reference Include="CitiesHarmony.Harmony, Version=2.0.4.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\CitiesHarmony.Harmony.2.2.0\lib\net35\CitiesHarmony.Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="ColossalManaged">
       <HintPath>W:\SteamLib3\steamapps\common\Cities_Skylines\Cities_Data\Managed\ColossalManaged.dll</HintPath>
     </Reference>
@@ -76,6 +83,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConcurrentMap.cs" />
+    <Compile Include="Patcher.cs" />
+    <Compile Include="SubStationAi.cs" />
     <Compile Include="PowerStorageAi.cs" />
     <Compile Include="GridMemberLastTickStats.cs" />
     <Compile Include="Grid.cs" />
@@ -83,7 +92,11 @@
     <Compile Include="PowerStorage.cs" />
     <Compile Include="PowerStorageLogger.cs" />
     <Compile Include="PowerStorageSettings.cs" />
+    <Compile Include="PowerStorageUi.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

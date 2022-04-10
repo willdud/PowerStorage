@@ -17,5 +17,7 @@ namespace PowerStorage
         public bool? Chirp = true;
         [SerializeField]
         public bool? Debug = true;
+        [SerializeField]
+        public PowerStorageMessageType ShownMessageTypes = PowerStorageMessageType.None;
     }
 }
