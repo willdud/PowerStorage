@@ -100,14 +100,14 @@ namespace PowerStorage
             ProduceByproducts(buildingData, ref finalProductionRate);
 
             buildingData.m_problems = myGridData.CurrentChargeKw < 1 
-                ? Notification.AddProblems(buildingData.m_problems, Notification.Problem.NoFuel) 
-                : Notification.RemoveProblems(buildingData.m_problems, Notification.Problem.NoFuel);
+                ? Notification.AddProblems(buildingData.m_problems, Notification.Problem1.NoFuel) 
+                : Notification.RemoveProblems(buildingData.m_problems, Notification.Problem1.NoFuel);
 
             //Death
             HandleDead(buildingId, ref buildingData, ref behaviour, totalWorkerCount);
             frameData.m_productionState += (byte) finalProductionRate;
             
-            if ((finalProductionRate != 0 || outputKw > 0 || amountToAddKw > 0) && (buildingData.m_problems & Notification.Problem.TurnedOff) !=  Notification.Problem.TurnedOff)
+            if ((finalProductionRate != 0 || outputKw > 0 || amountToAddKw > 0) && (buildingData.m_problems & Notification.Problem1.TurnedOff) !=  Notification.Problem1.TurnedOff)
             {
                 myGridData.IsOff = false;
                 buildingData.m_flags |= Building.Flags.Active;
@@ -158,7 +158,7 @@ namespace PowerStorage
         private int DrawElectricityFromGridIntoStorage(Building buildingData, int demandKw, GridMemberLastTickStats myGridData,  ref int amountToAddKw)
         {
             int finalProductionRate = 0;
-            if (demandKw <= 0 && (buildingData.m_problems & Notification.Problem.Electricity) != Notification.Problem.Electricity)
+            if (demandKw <= 0 && (buildingData.m_problems & Notification.Problem1.Electricity) != Notification.Problem1.Electricity)
             {
                 _chargingChirpFlag = true;
                 
@@ -199,7 +199,7 @@ namespace PowerStorage
         {
             int excessKw;
             var maxSilly = maxKw.KwToSilly();
-            if ((buildingData.m_problems & Notification.Problem.Electricity) == Notification.Problem.Electricity)
+            if ((buildingData.m_problems & Notification.Problem1.Electricity) == Notification.Problem1.Electricity)
             {
                 excessKw = 0; // full output
             }

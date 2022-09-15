@@ -83,7 +83,7 @@ namespace PowerStorage
             
             //Charge
             int amountToAddKw = 0;
-            if ((buildingData.m_problems & Notification.Problem.Electricity) != Notification.Problem.Electricity)
+            if ((buildingData.m_problems & Notification.Problem1.Electricity) != Notification.Problem1.Electricity)
             {
                 finalProductionRate = 0;
                 myGridData.ChargeProvidedKw = 0;
@@ -139,14 +139,14 @@ namespace PowerStorage
             
             
             buildingData.m_problems = myGridData.CurrentChargeKw < 1 
-                ? Notification.AddProblems(buildingData.m_problems, Notification.Problem.NoFuel) 
-                : Notification.RemoveProblems(buildingData.m_problems, Notification.Problem.NoFuel);
+                ? Notification.AddProblems(buildingData.m_problems, Notification.Problem1.NoFuel) 
+                : Notification.RemoveProblems(buildingData.m_problems, Notification.Problem1.NoFuel);
 
             //Death
             HandleDead(buildingId, ref buildingData, ref behaviour, totalWorkerCount);
             frameData.m_productionState += (byte) finalProductionRate;
             
-            if ((finalProductionRate != 0 || outputKw > 0 || amountToAddKw > 0) && (buildingData.m_problems & Notification.Problem.TurnedOff) !=  Notification.Problem.TurnedOff)
+            if ((finalProductionRate != 0 || outputKw > 0 || amountToAddKw > 0) && (buildingData.m_problems & Notification.Problem1.TurnedOff) !=  Notification.Problem1.TurnedOff)
             {
                 myGridData.IsOff = false;
                 buildingData.m_flags |= Building.Flags.Active;
